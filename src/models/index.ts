@@ -1,3 +1,5 @@
+import { ImageAttachment } from "../utils/image";
+
 export interface ModelConfig {
   name: string;
   provider: "deepseek" | "anthropic" | "openai" | "qwen" | "kimi" | "groq" | "custom";
@@ -7,6 +9,7 @@ export interface ModelConfig {
   outputCostSARPerMToken: number;
   contextWindow: number;
   bestFor?: string;
+  supportsVision?: boolean;
 }
 
 export const MODEL_REGISTRY: Record<string, ModelConfig> = {
@@ -28,6 +31,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     outputCostSARPerMToken: 16.87,
     contextWindow: 200000,
     bestFor: "Complex reasoning · Large codebases · Best quality",
+    supportsVision: true,
   },
   "gpt-4o": {
     name: "GPT-4o",
@@ -38,6 +42,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     outputCostSARPerMToken: 28.12,
     contextWindow: 128000,
     bestFor: "Multimodal · Vision · Broad knowledge",
+    supportsVision: true,
   },
   "qwen-2.5-coder": {
     name: "Qwen 2.5 Coder",
@@ -99,6 +104,17 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     contextWindow: 8192,
     bestFor: "Free · Lightweight · Simple tasks · Fastest",
   },
+  "llama-3.2-vision": {
+    name: "Llama 3.2 Vision",
+    provider: "groq",
+    apiBase: "https://api.groq.com/openai/v1",
+    model: "llama-3.2-11b-vision-preview",
+    inputCostSARPerMToken: 0.0,
+    outputCostSARPerMToken: 0.0,
+    contextWindow: 128000,
+    supportsVision: true,
+    bestFor: "Free · Image analysis · Vision tasks · Arabic",
+  },
 };
 
 export type ModelId = keyof typeof MODEL_REGISTRY;
@@ -106,6 +122,7 @@ export type ModelId = keyof typeof MODEL_REGISTRY;
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  images?: ImageAttachment[];
   tool_calls?: ToolCall[];
   tool_call_id?: string;
   name?: string;

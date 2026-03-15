@@ -40,6 +40,12 @@ ${g("  Memory / الذاكرة")}
   ${w("/memory")}           Show project memory — ${d("عرض الذاكرة")}
   ${w("/memory reset")}     Clear project memory — ${d("مسح الذاكرة")}
 
+${g("  Images / الصور")}
+  Drop any image path or URL into your message — ${d("أرسل مسار صورة أو رابط")}
+  ${w("/Users/me/photo.png")}  or  ${w("https://example.com/img.jpg")}
+  Vision models: ${c("claude-sonnet")}, ${c("gpt-4o")}, ${c("llama-3.2-vision")} ${d("(free)")}
+  Auto-switches to vision model if needed — ${d("تبديل تلقائي لنموذج الرؤية")}
+
 ${g("  Free Models / نماذج مجانية")}
   ${c("llama-3.3-70b")}     Free via Groq (needs free key)
   ${c("llama-3.1-8b")}      Free via Groq

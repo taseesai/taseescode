@@ -1,4 +1,5 @@
 import { ChatMessage } from "../models";
+import { ImageAttachment } from "../utils/image";
 
 export class Conversation {
   private messages: ChatMessage[] = [];
@@ -15,6 +16,10 @@ export class Conversation {
 
   addUser(content: string): void {
     this.messages.push({ role: "user", content });
+  }
+
+  addUserWithImages(content: string, images: ImageAttachment[]): void {
+    this.messages.push({ role: "user", content, images });
   }
 
   addAssistant(content: string, toolCalls?: ChatMessage["tool_calls"]): void {

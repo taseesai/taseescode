@@ -51,6 +51,20 @@ export class AnthropicProvider implements ModelProvider {
         return { role: "assistant" as const, content };
       }
 
+      // User message with images — multi-content block
+      if (m.images && m.images.length > 0 && m.role === "user") {
+        const content: Array<Record<string, unknown>> = [];
+        for (const img of m.images) {
+          if (img.type === "url") {
+            content.push({ type: "image", source: { type: "url", url: img.url } });
+          } else {
+            content.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
+          }
+        }
+        content.push({ type: "text", text: m.content });
+        return { role: "user" as const, content };
+      }
+
       return {
         role: m.role as "user" | "assistant",
         content: m.content,

@@ -5,11 +5,13 @@ import {
   getModelConfig,
   ModelResponse,
   ToolCall,
+  MODEL_REGISTRY,
   loadCustomModelsFromConfig,
 } from "../models";
 import { getConfig } from "../utils/config";
 import { trackUsage } from "../utils/cost";
 import { detectLanguage } from "../utils/lang-detect";
+import { detectImages, loadImage, ImageAttachment } from "../utils/image";
 import { readProjectContext, buildFileTree } from "./context";
 import { readMemory } from "./memory";
 import { loadAllSkills } from "../skills/loader";
@@ -84,7 +86,60 @@ export class Agent {
 
   async processMessage(userMessage: string): Promise<string> {
     const lang = detectLanguage(userMessage);
-    this.conversation.addUser(userMessage);
+
+    // Detect images in the message
+    const imagePaths = detectImages(userMessage);
+    let images: ImageAttachment[] = [];
+    let originalModel: string | null = null;
+
+    if (imagePaths.length > 0) {
+      const modelConfig = getModelConfig(this.currentModel);
+
+      if (!modelConfig.supportsVision) {
+        // Auto-route to a vision-capable model
+        const visionModels = ["claude-sonnet", "gpt-4o", "llama-3.2-vision"];
+        const config = getConfig();
+        const availableVisionModel = visionModels.find((id) => {
+          const m = MODEL_REGISTRY[id];
+          if (!m) return false;
+          const key = config.apiKeys[m.provider as keyof typeof config.apiKeys];
+          return key && key.length > 10;
+        });
+
+        if (availableVisionModel) {
+          this.callbacks.onResponse(
+            `📸 Image detected — switching to ${MODEL_REGISTRY[availableVisionModel].name} for vision analysis...`
+          );
+          originalModel = this.currentModel;
+          this.currentModel = availableVisionModel;
+        } else {
+          this.callbacks.onError(
+            "📸 Image detected but no vision model available.\n" +
+            "Vision models: claude-sonnet, gpt-4o, llama-3.2-vision\n" +
+            "Set a key to use them: /config set apiKeys.anthropic sk-ant-..."
+          );
+          return "";
+        }
+      }
+
+      // Load all detected images
+      for (const imgPath of imagePaths) {
+        try {
+          const img = await loadImage(imgPath);
+          images.push(img);
+          this.callbacks.onResponse(`📸 Loaded image: ${img.source}`);
+        } catch (err) {
+          this.callbacks.onError(`Could not load image: ${imgPath}`);
+        }
+      }
+    }
+
+    // Add message — with or without images
+    if (images.length > 0) {
+      this.conversation.addUserWithImages(userMessage, images);
+    } else {
+      this.conversation.addUser(userMessage);
+    }
 
     let response: ModelResponse;
     let maxIterations = 10;
@@ -100,6 +155,7 @@ export class Agent {
         : config.apiKeys[modelConfig.provider as keyof typeof config.apiKeys];
 
       if (!apiKey) {
+        if (originalModel) this.currentModel = originalModel;
         const errorMsg =
           lang === "ar"
             ? `لا يوجد مفتاح API لـ ${modelConfig.provider}.\nاستخدم: /config set apiKeys.${modelConfig.provider} YOUR_KEY\nأو اختر نموذجاً مجانياً: /model llama-3.3-70b`
@@ -119,6 +175,7 @@ export class Agent {
           this.currentModel
         );
       } catch (err: unknown) {
+        if (originalModel) this.currentModel = originalModel;
         const errorMessage = err instanceof Error ? err.message : String(err);
         this.callbacks.onError(`API error: ${errorMessage}`);
         return `Error: ${errorMessage}`;
@@ -133,6 +190,7 @@ export class Agent {
 
       // If no tool calls, we're done
       if (!response.toolCalls || response.toolCalls.length === 0) {
+        if (originalModel) this.currentModel = originalModel;
         this.conversation.addAssistant(response.content);
         this.callbacks.onResponse(response.content);
         return response.content;
@@ -190,6 +248,11 @@ export class Agent {
       }
 
       // Loop back to get next response after tool results
+    }
+
+    // Restore original model if we auto-switched for vision
+    if (originalModel) {
+      this.currentModel = originalModel;
     }
 
     return response!.content || "Max iterations reached.";

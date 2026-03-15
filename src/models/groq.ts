@@ -23,6 +23,19 @@ export class GroqProvider implements ModelProvider {
           role: m.role,
           content: m.content,
         };
+        // User message with images — OpenAI-compatible vision format
+        if (m.images && m.images.length > 0 && m.role === "user") {
+          const content: Array<Record<string, unknown>> = [];
+          for (const img of m.images) {
+            if (img.type === "url") {
+              content.push({ type: "image_url", image_url: { url: img.url } });
+            } else {
+              content.push({ type: "image_url", image_url: { url: `data:${img.mediaType};base64,${img.data}` } });
+            }
+          }
+          content.push({ type: "text", text: m.content });
+          msg.content = content;
+        }
         if (m.tool_calls) msg.tool_calls = m.tool_calls;
         if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
         if (m.name) msg.name = m.name;
