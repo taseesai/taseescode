@@ -30,6 +30,12 @@ ${g("  Skills / المهارات")}
   ${w("/skills install")}   Install a skill — ${d("تثبيت مهارة")}
   ${w("/skills remove")}    Remove a skill — ${d("إزالة مهارة")}
 
+${g("  API / الاتصالات")}
+  ${w("/api add [name] [url] [key?]")}  Connect any API — ${d("ربط API")}
+  ${w("/api list")}         List connected APIs — ${d("عرض الاتصالات")}
+  ${w("/api test [name]")}  Test API connection — ${d("اختبار الاتصال")}
+  ${w("/api remove [name]")} Remove API — ${d("إزالة API")}
+
 ${g("  Memory / الذاكرة")}
   ${w("/memory")}           Show project memory — ${d("عرض الذاكرة")}
   ${w("/memory reset")}     Clear project memory — ${d("مسح الذاكرة")}

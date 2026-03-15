@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { MODEL_REGISTRY } from "../models";
 import { getConfig } from "../utils/config";
+import { loadCustomModelsFromConfig } from "../models";
 
 const c = {
   white:  chalk.hex("#E8E8E8"),
@@ -138,17 +139,39 @@ export function modelCommand(args: string[], currentModel: string): string {
       );
     }
 
+    // Custom APIs section
+    const customModels = Object.entries(MODEL_REGISTRY).filter(([id]) => id.startsWith("custom:"));
+    if (customModels.length > 0) {
+      lines.push("", c.silver("  ⚡ Custom APIs (connected via /api add)"));
+      for (const [id, m] of customModels) {
+        const active = id === currentModel ? c.green(" ● ") : "   ";
+        lines.push(
+          `${active}${c.white.bold(m.name.padEnd(22))} ${c.dim(id)}`,
+          `      ${c.green("✦ Connected")}  ${c.dim(`│`)}  ${c.dim(m.bestFor || "")}`,
+        );
+      }
+    }
+
     lines.push("", c.dim("  Switch model: /model [id]"), "");
     return lines.join("\n");
   }
 
   // /model [id]  → switch with key check
   const modelId = args[0];
+
+  // Ensure custom models are loaded
+  loadCustomModelsFromConfig();
+
   const m = MODEL_REGISTRY[modelId];
 
   if (!m) {
     const ids = Object.keys(MODEL_REGISTRY).join(", ");
     return c.red(`Unknown model: ${modelId}\n`) + c.dim(`Available: ${ids}`);
+  }
+
+  // Custom models don't need API key validation
+  if (m.provider === "custom") {
+    return `__SWITCH__${modelId}`;
   }
 
   const status = getApiKeyStatus(m.provider);

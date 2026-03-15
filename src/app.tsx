@@ -12,6 +12,7 @@ import { costCommand } from "./commands/cost";
 import { configCommand } from "./commands/config-cmd";
 import { memoryCommand } from "./commands/memory-cmd";
 import { skillsCommand } from "./commands/skills";
+import { apiCommand } from "./commands/api";
 import { exitCommand } from "./commands/exit";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
@@ -164,6 +165,9 @@ export const App: React.FC = () => {
             break;
           case "skills":
             output = await skillsCommand(args);
+            break;
+          case "api":
+            output = await apiCommand(args);
             break;
           case "exit":
             output = exitCommand();

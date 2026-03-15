@@ -23,6 +23,13 @@ export interface TaseesConfig {
     kimi: string | null;
     groq: string | null;
   };
+  customApis: Record<string, {
+    name: string;
+    baseUrl: string;
+    apiKey: string | null;
+    model: string | null;
+    addedAt: string;
+  }>;
 }
 
 const defaults: TaseesConfig = {
@@ -46,6 +53,7 @@ const defaults: TaseesConfig = {
     kimi: null,
     groq: null,
   },
+  customApis: {},
 };
 
 const configDir = path.join(

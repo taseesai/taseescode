@@ -5,6 +5,7 @@ import {
   getModelConfig,
   ModelResponse,
   ToolCall,
+  loadCustomModelsFromConfig,
 } from "../models";
 import { getConfig } from "../utils/config";
 import { trackUsage } from "../utils/cost";
@@ -54,6 +55,9 @@ export class Agent {
   }
 
   async initialize(cwd: string): Promise<void> {
+    // Load custom API models from config
+    loadCustomModelsFromConfig();
+
     const context = await readProjectContext(cwd);
     const memory = await readMemory(cwd);
     const skills = await loadAllSkills();
@@ -90,7 +94,10 @@ export class Agent {
 
       const config = getConfig();
       const modelConfig = getModelConfig(this.currentModel);
-      const apiKey = config.apiKeys[modelConfig.provider as keyof typeof config.apiKeys];
+      // Custom providers use their own API key from customApis config
+      const apiKey = modelConfig.provider === "custom"
+        ? (config.customApis?.[this.currentModel.replace("custom:", "")]?.apiKey || "none")
+        : config.apiKeys[modelConfig.provider as keyof typeof config.apiKeys];
 
       if (!apiKey) {
         const errorMsg =

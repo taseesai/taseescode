@@ -1,6 +1,6 @@
 export interface ModelConfig {
   name: string;
-  provider: "deepseek" | "anthropic" | "openai" | "qwen" | "kimi" | "groq";
+  provider: "deepseek" | "anthropic" | "openai" | "qwen" | "kimi" | "groq" | "custom";
   apiBase?: string;
   model: string;
   inputCostSARPerMToken: number;
@@ -152,6 +152,7 @@ import { OpenAIProvider } from "./openai";
 import { QwenProvider } from "./qwen";
 import { KimiProvider } from "./kimi";
 import { GroqProvider } from "./groq";
+import { CustomProvider } from "./custom";
 
 const providers: Record<string, ModelProvider> = {
   deepseek: new DeepSeekProvider(),
@@ -160,6 +161,7 @@ const providers: Record<string, ModelProvider> = {
   qwen: new QwenProvider(),
   kimi: new KimiProvider(),
   groq: new GroqProvider(),
+  custom: new CustomProvider(),
 };
 
 export function getProvider(modelId: string): ModelProvider {
@@ -172,4 +174,37 @@ export function getModelConfig(modelId: string): ModelConfig {
   const model = MODEL_REGISTRY[modelId];
   if (!model) throw new Error(`Unknown model: ${modelId}`);
   return model;
+}
+
+export function registerCustomModel(name: string, baseUrl: string): void {
+  MODEL_REGISTRY[`custom:${name}`] = {
+    name: `Custom: ${name}`,
+    provider: "custom",
+    apiBase: baseUrl,
+    model: "custom",
+    inputCostSARPerMToken: 0,
+    outputCostSARPerMToken: 0,
+    contextWindow: 128000,
+    bestFor: `Custom API — ${baseUrl}`,
+  };
+}
+
+export function loadCustomModelsFromConfig(): void {
+  // Lazy import to avoid circular dependency
+  const { getConfig } = require("../utils/config");
+  const cfg = getConfig();
+  const customApis = cfg.customApis || {};
+  for (const [name, api] of Object.entries(customApis)) {
+    const a = api as { baseUrl: string; model: string | null };
+    MODEL_REGISTRY[`custom:${name}`] = {
+      name: `Custom: ${name}`,
+      provider: "custom",
+      apiBase: a.baseUrl,
+      model: a.model || "custom",
+      inputCostSARPerMToken: 0,
+      outputCostSARPerMToken: 0,
+      contextWindow: 128000,
+      bestFor: `Custom API — ${a.baseUrl}`,
+    };
+  }
 }
