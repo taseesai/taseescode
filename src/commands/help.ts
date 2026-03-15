@@ -49,8 +49,11 @@ ${g("  Images / الصور")}
 ${g("  Free Models / نماذج مجانية")}
   ${c("llama-3.3-70b")}     Free via Groq (needs free key)
   ${c("llama-3.1-8b")}      Free via Groq
-  ${c("mixtral-8x7b")}      Free via Groq
-  ${c("gemma2-9b")}         Free via Groq
+  ${c("llama-4-scout")}     Free via Groq — Latest Llama 4
+  ${c("kimi-k2")}           Free via Groq — Agentic + Arabic
+  ${c("qwen3-32b")}         Free via Groq — Strong coder
+  ${c("allam-2")}           Free via Groq — Saudi Arabic (KACST)
+  ${c("compound")}          Free via Groq — Compound reasoning
   ${c("deepseek-v3")}       Low cost (0.054 SAR/M)
 `;
 }
