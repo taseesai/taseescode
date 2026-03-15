@@ -71,6 +71,12 @@ const config = new Conf<TaseesConfig>({
   defaults,
 });
 
+// Secure config file permissions on startup
+try {
+  const configFilePath = path.join(configDir, 'config.json');
+  fs.chmodSync(configFilePath, 0o600);
+} catch {}
+
 export function getConfig(): TaseesConfig {
   return config.store;
 }
@@ -80,10 +86,18 @@ export function setConfig<K extends keyof TaseesConfig>(
   value: TaseesConfig[K]
 ): void {
   config.set(key, value);
+  try {
+    const configPath = path.join(getConfigDir(), 'config.json');
+    fs.chmodSync(configPath, 0o600);
+  } catch {}
 }
 
 export function setNestedConfig(keyPath: string, value: unknown): void {
   config.set(keyPath, value);
+  try {
+    const configPath = path.join(getConfigDir(), 'config.json');
+    fs.chmodSync(configPath, 0o600);
+  } catch {}
 }
 
 export function getConfigDir(): string {

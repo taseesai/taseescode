@@ -6,6 +6,10 @@ export async function handleStandup(args: string, agent: Agent): Promise<string>
     const { execSync } = require('child_process');
 
     const since = args.trim() || '24 hours ago';
+    // Validate: only allow safe time expressions
+    if (!/^\d+\s+(hours?|days?|weeks?|months?)\s+ago$/.test(since) && since !== '24 hours ago') {
+      return 'Invalid time format. Use: /standup 48 hours ago';
+    }
 
     // Get recent commits
     let commits = '';

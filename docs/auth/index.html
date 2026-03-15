@@ -291,7 +291,11 @@
     // Update UI with provider info
     document.getElementById('provider-badge').textContent = provider.toUpperCase();
     document.getElementById('provider-name-text').textContent = provider;
-    document.getElementById('console-link').href = providerUrl;
+    if (providerUrl && providerUrl.startsWith('https://')) {
+      document.getElementById('console-link').href = providerUrl;
+    } else {
+      document.getElementById('console-link').href = '#';
+    }
 
     // Update placeholder based on provider
     const placeholders = {

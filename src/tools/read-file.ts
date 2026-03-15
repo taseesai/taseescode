@@ -1,6 +1,6 @@
 import fs from "fs-extra";
-import path from "path";
 import { registerTool, ToolResult } from "../core/tools";
+import { safePath } from "../utils/path-guard";
 
 registerTool({
   name: "read_file",
@@ -14,7 +14,7 @@ registerTool({
   },
   requiresApproval: false,
   async execute(args): Promise<ToolResult> {
-    const filePath = path.resolve(args.path as string);
+    const filePath = safePath(args.path as string);
     try {
       const content = await fs.readFile(filePath, "utf-8");
       return { success: true, output: content };

@@ -6,6 +6,17 @@ const MEMORY_FILE = "memory.md";
 const MAX_MEMORY_LINES = 500; // Keep last 500 entries max
 const MAX_ENTRY_LENGTH = 300; // Truncate long messages
 
+function sanitize(text: string): string {
+  return text
+    .replace(/sk-[a-zA-Z0-9_-]{20,}/g, '***KEY_REDACTED***')
+    .replace(/sk-ant-[a-zA-Z0-9_-]{20,}/g, '***KEY_REDACTED***')
+    .replace(/gsk_[a-zA-Z0-9_-]{20,}/g, '***KEY_REDACTED***')
+    .replace(/Bearer\s+[a-zA-Z0-9_.-]{20,}/g, 'Bearer ***REDACTED***')
+    .replace(/eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g, '***JWT_REDACTED***')
+    .replace(/ghp_[a-zA-Z0-9]{20,}/g, '***GITHUB_TOKEN_REDACTED***')
+    .replace(/xox[bpsa]-[a-zA-Z0-9-]{20,}/g, '***SLACK_TOKEN_REDACTED***');
+}
+
 /**
  * AutoMemory — persistent, silent, always-on memory for every project.
  *
@@ -86,7 +97,7 @@ export class AutoMemory {
     const truncated = message.length > MAX_ENTRY_LENGTH
       ? message.slice(0, MAX_ENTRY_LENGTH) + "..."
       : message;
-    this.buffer.push(`[${timestamp}] **User:** ${truncated}`);
+    this.buffer.push(`[${timestamp}] **User:** ${sanitize(truncated)}`);
     this.scheduleFlush();
   }
 
@@ -97,7 +108,7 @@ export class AutoMemory {
     const truncated = message.length > MAX_ENTRY_LENGTH
       ? message.slice(0, MAX_ENTRY_LENGTH) + "..."
       : message;
-    this.buffer.push(`**TaseesCode:** ${truncated}`);
+    this.buffer.push(`**TaseesCode:** ${sanitize(truncated)}`);
     this.buffer.push(""); // blank line between exchanges
     this.scheduleFlush();
   }
@@ -110,7 +121,7 @@ export class AutoMemory {
     const summary = result
       ? (result.length > 100 ? result.slice(0, 100) + "..." : result)
       : "";
-    this.buffer.push(`  ${status} \`${name}\`${summary ? ": " + summary : ""}`);
+    this.buffer.push(`  ${status} \`${name}\`${summary ? ": " + sanitize(summary) : ""}`);
     this.scheduleFlush();
   }
 

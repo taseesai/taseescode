@@ -1,6 +1,6 @@
 import fs from "fs-extra";
-import path from "path";
 import { registerTool, ToolResult } from "../core/tools";
+import { safePath } from "../utils/path-guard";
 
 registerTool({
   name: "write_file",
@@ -15,7 +15,7 @@ registerTool({
   },
   requiresApproval: true,
   async execute(args): Promise<ToolResult> {
-    const filePath = path.resolve(args.path as string);
+    const filePath = safePath(args.path as string);
     try {
       await fs.writeFile(filePath, args.content as string, "utf-8");
       return { success: true, output: `Written to ${filePath}` };

@@ -202,7 +202,10 @@ export function startAuthServer(
 
     const server = http.createServer(async (req, res) => {
       // CORS headers
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      const origin = req.headers.origin || "";
+      const allowedOrigins = [HOSTED_AUTH_URL, `http://localhost`];
+      const isAllowed = allowedOrigins.some(o => origin.startsWith(o));
+      res.setHeader("Access-Control-Allow-Origin", isAllowed ? origin : HOSTED_AUTH_URL);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -223,7 +226,12 @@ export function startAuthServer(
       // Handle key submission
       if (req.method === "POST" && req.url === "/auth") {
         let body = "";
-        req.on("data", (chunk) => { body += chunk; });
+        let bodySize = 0;
+        req.on("data", (chunk: Buffer) => {
+          bodySize += chunk.length;
+          if (bodySize > 10000) { res.writeHead(413); res.end(); req.destroy(); return; }
+          body += chunk;
+        });
         req.on("end", async () => {
           try {
             const { key } = JSON.parse(body);

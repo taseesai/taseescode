@@ -1,6 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import { registerTool, ToolResult } from "../core/tools";
+import { safePath } from "../utils/path-guard";
 
 registerTool({
   name: "create_file",
@@ -15,7 +16,7 @@ registerTool({
   },
   requiresApproval: true,
   async execute(args): Promise<ToolResult> {
-    const filePath = path.resolve(args.path as string);
+    const filePath = safePath(args.path as string);
     try {
       if (await fs.pathExists(filePath)) {
         return { success: false, output: "", error: `File already exists: ${filePath}` };
