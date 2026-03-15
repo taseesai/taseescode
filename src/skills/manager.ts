@@ -19,22 +19,53 @@ const c = {
 const REGISTRY_BASE = "https://raw.githubusercontent.com/taseesai/taseescode-skills/main/skills";
 const REGISTRY_INDEX = "https://raw.githubusercontent.com/taseesai/taseescode-skills/main/index.json";
 
-// Also support custom GitHub installs: /skills install user/repo or user/repo/subpath
-function parseSkillSource(input: string): { type: "registry" | "github"; url: string; name: string } {
-  // Custom github: "username/repo" or "username/repo/path"
+// Parse any of these formats:
+//   react-expert                         → official registry
+//   username/repo                        → github shorthand (root of repo)
+//   username/repo/path/to/skill          → github shorthand (subfolder)
+//   https://github.com/user/repo         → full github URL (root)
+//   https://github.com/user/repo/tree/main/path  → full github URL (subfolder)
+//   https://raw.githubusercontent.com/... → raw URL (direct)
+function parseSkillSource(input: string): { type: "registry" | "github"; rawBase: string; name: string } {
+
+  // Full raw.githubusercontent.com URL — use directly
+  if (input.startsWith("https://raw.githubusercontent.com/")) {
+    const name = input.split("/").filter(Boolean).pop() || "skill";
+    return { type: "github", rawBase: input.replace(/\/$/, ""), name };
+  }
+
+  // Full github.com URL
+  if (input.startsWith("https://github.com/") || input.startsWith("http://github.com/")) {
+    // https://github.com/user/repo  →  raw: https://raw.githubusercontent.com/user/repo/main
+    // https://github.com/user/repo/tree/main/path  →  raw: .../user/repo/main/path
+    const withoutProtocol = input.replace(/^https?:\/\/github\.com\//, "");
+    const parts = withoutProtocol.split("/");
+    const user = parts[0];
+    const repo = parts[1];
+    // parts[2] = "tree", parts[3] = branch, parts[4+] = subpath
+    const hasBranch = parts[2] === "tree";
+    const branch = hasBranch ? parts[3] : "main";
+    const subpath = hasBranch ? parts.slice(4).join("/") : parts.slice(2).join("/");
+    const name = subpath ? subpath.split("/").pop() || repo : repo;
+    const rawBase = `https://raw.githubusercontent.com/${user}/${repo}/${branch}${subpath ? "/" + subpath : ""}`;
+    return { type: "github", rawBase: rawBase.replace(/\/$/, ""), name };
+  }
+
+  // Shorthand: user/repo or user/repo/path
   if (input.includes("/")) {
     const parts = input.split("/");
     const user = parts[0];
     const repo = parts[1];
-    const subpath = parts.slice(2).join("/") || "";
-    const skillName = parts[parts.length - 1];
-    const base = `https://raw.githubusercontent.com/${user}/${repo}/main${subpath ? "/" + subpath : ""}`;
-    return { type: "github", url: base, name: skillName };
+    const subpath = parts.slice(2).join("/");
+    const name = subpath ? subpath.split("/").pop() || repo : repo;
+    const rawBase = `https://raw.githubusercontent.com/${user}/${repo}/main${subpath ? "/" + subpath : ""}`;
+    return { type: "github", rawBase: rawBase.replace(/\/$/, ""), name };
   }
-  // Official registry
+
+  // Official registry name
   return {
     type: "registry",
-    url: `${REGISTRY_BASE}/${input}`,
+    rawBase: `${REGISTRY_BASE}/${input}`,
     name: input,
   };
 }
@@ -55,9 +86,10 @@ export async function installSkill(input: string): Promise<string> {
 
   const lines: string[] = [];
   lines.push(`\n${c.silver("◆")} Installing ${c.white.bold(source.name)}...`);
+  lines.push(c.dim(`  Source: ${input}`));
 
   // 1. Fetch skill.json
-  const skillJsonUrl = `${source.url}/skill.json`;
+  const skillJsonUrl = `${source.rawBase}/skill.json`;
   let skillJson: Record<string, unknown>;
 
   try {
@@ -101,7 +133,7 @@ export async function installSkill(input: string): Promise<string> {
   const extraFiles = (skillJson.files as string[]) || [];
   for (const file of extraFiles) {
     try {
-      const fileUrl = `${source.url}/${file}`;
+      const fileUrl = `${source.rawBase}/${file}`;
       const resp = await axios.get(fileUrl, { timeout: 10000 });
       const destPath = path.join(skillDir, file);
       await fs.ensureDir(path.dirname(destPath));
