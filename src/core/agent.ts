@@ -113,9 +113,9 @@ export class Agent {
 
       if (!modelConfig.supportsVision) {
         // Auto-route to a vision-capable model
-        const visionModels = ["claude-sonnet", "gpt-4o", "llama-3.2-vision"];
+        const visionModelIds = ["claude-sonnet", "gpt-4o"];
         const config = getConfig();
-        const availableVisionModel = visionModels.find((id) => {
+        const availableVisionModel = visionModelIds.find((id) => {
           const m = MODEL_REGISTRY[id];
           if (!m) return false;
           const key = config.apiKeys[m.provider as keyof typeof config.apiKeys];
@@ -130,9 +130,15 @@ export class Agent {
           this.currentModel = availableVisionModel;
         } else {
           this.callbacks.onError(
-            "📸 Image detected but no vision model available.\n" +
-            "Vision models: claude-sonnet, gpt-4o, llama-3.2-vision\n" +
-            "Set a key to use them: /config set apiKeys.anthropic sk-ant-..."
+            [
+              "📸 Image detected but no vision model available.",
+              "",
+              "  To analyze images, set one of these keys:",
+              "  /config set apiKeys.anthropic sk-ant-...   (Claude Sonnet)",
+              "  /config set apiKeys.openai sk-...          (GPT-4o)",
+              "",
+              "  Get a free Anthropic key at: console.anthropic.com",
+            ].join("\n")
           );
           return "";
         }

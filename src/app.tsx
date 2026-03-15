@@ -120,8 +120,10 @@ export const App: React.FC = () => {
 
   const handleSubmit = useCallback(
     async (input: string) => {
-      // Handle slash commands
-      if (input.startsWith("/")) {
+      // Handle slash commands — must be /word not a file path like /var/folders/...
+      const SLASH_CMDS = ["help","clear","model","cost","config","memory","skills","exit","api","review","explain","deploy","git","n8n","template","history","whatsapp","health","fix","standup","compact","permissions","mcp"];
+      const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
+      if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
         const parts = input.slice(1).split(/\s+/);
         const cmd = parts[0];
         const args = parts.slice(1);

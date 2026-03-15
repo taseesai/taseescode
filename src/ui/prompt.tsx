@@ -48,7 +48,9 @@ export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Filter commands based on what user typed after /
-  const showMenu = value.startsWith("/") && value.length >= 1;
+  // Only show menu for /word commands, not file paths like /var/folders/... or /Users/...
+  const isFilePath = /^\/[a-zA-Z].*\//.test(value) || /^~\//.test(value);
+  const showMenu = value.startsWith("/") && !isFilePath && value.length >= 1;
   const query = value.toLowerCase();
   const filtered = showMenu
     ? SLASH_COMMANDS.filter(
