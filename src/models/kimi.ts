@@ -4,7 +4,9 @@ import {
   ChatMessage,
   ToolDefinition,
   ModelResponse,
+  StreamCallback,
 } from "./index";
+import { parseOpenAICompatibleSSE } from "./stream-utils";
 
 export class KimiProvider implements ModelProvider {
   async chat(
@@ -58,5 +60,48 @@ export class KimiProvider implements ModelProvider {
       outputTokens: usage.completion_tokens || 0,
       finishReason: choice.finish_reason || "stop",
     };
+  }
+
+  async chatStream(
+    messages: ChatMessage[],
+    tools: ToolDefinition[],
+    apiKey: string,
+    _modelId: string,
+    onChunk: StreamCallback
+  ): Promise<ModelResponse> {
+    const { MODEL_REGISTRY } = require("./index");
+    const config = MODEL_REGISTRY["kimi-k1.5"];
+    const body: Record<string, unknown> = {
+      model: config.model,
+      messages: messages.map((m) => {
+        const msg: Record<string, unknown> = {
+          role: m.role,
+          content: m.content,
+        };
+        if (m.tool_calls) msg.tool_calls = m.tool_calls;
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+        if (m.name) msg.name = m.name;
+        return msg;
+      }),
+      temperature: 0.7,
+      max_tokens: 4096,
+      stream: true,
+    };
+
+    if (tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
+
+    try {
+      return await parseOpenAICompatibleSSE(
+        `${config.apiBase}/chat/completions`,
+        body,
+        { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        onChunk
+      );
+    } catch {
+      return this.chat(messages, tools, apiKey, _modelId);
+    }
   }
 }

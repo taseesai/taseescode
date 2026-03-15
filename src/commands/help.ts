@@ -36,9 +36,19 @@ ${g("  API / الاتصالات")}
   ${w("/api test [name]")}  Test API connection — ${d("اختبار الاتصال")}
   ${w("/api remove [name]")} Remove API — ${d("إزالة API")}
 
-${g("  Memory / الذاكرة")}
+${g("  Code / الكود")}
+  ${w("/review [file]")}    Review code or staged changes — ${d("مراجعة الكود")}
+  ${w("/explain [file]")}   Explain what code does — ${d("شرح الكود")}
+  ${w("/fix [error]")}      Analyze and fix an error — ${d("إصلاح الخطأ")}
+  ${w("/standup")}           Generate standup from git — ${d("تقرير يومي")}
+  ${w("/health")}            Codebase health report — ${d("صحة المشروع")}
+
+${g("  Memory & History / الذاكرة والسجل")}
   ${w("/memory")}           Show project memory — ${d("عرض الذاكرة")}
   ${w("/memory reset")}     Clear project memory — ${d("مسح الذاكرة")}
+  ${w("/history")}           Browse past sessions — ${d("سجل الجلسات")}
+  ${w("/compact")}           Compact conversation context — ${d("ضغط السياق")}
+  ${w("/permissions")}       Show permission settings — ${d("الصلاحيات")}
 
 ${g("  Images / الصور")}
   Drop any image path or URL into your message — ${d("أرسل مسار صورة أو رابط")}

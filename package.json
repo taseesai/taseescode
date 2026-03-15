@@ -1,6 +1,6 @@
 {
   "name": "taseescode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Arabic-first AI coding assistant by TaseesAI",
   "main": "dist/cli.js",
   "bin": {

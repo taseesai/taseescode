@@ -14,8 +14,18 @@ import { memoryCommand } from "./commands/memory-cmd";
 import { skillsCommand } from "./commands/skills";
 import { apiCommand } from "./commands/api";
 import { exitCommand } from "./commands/exit";
+import { handleReview } from "./commands/review";
+import { handleExplain } from "./commands/explain";
+import { handleFix } from "./commands/fix";
+import { handleHistory } from "./commands/history";
+import { handleStandup } from "./commands/standup";
+import { handleHealth } from "./commands/health";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
+import { getConfig } from "./utils/config";
+import { getSessionCost } from "./utils/cost";
+import { generateSessionId, saveSession, SessionRecord } from "./utils/session";
+import { getTheme } from "./utils/theme";
 
 // Register all tools
 import "./tools/read-file";
@@ -33,6 +43,7 @@ interface DisplayMessage {
   content: string;
   toolName?: string;
   toolSuccess?: boolean;
+  isStreaming?: boolean;
 }
 
 interface PendingApproval {
@@ -45,11 +56,16 @@ let msgId = 0;
 
 export const App: React.FC = () => {
   const { exit } = useApp();
+  const config = getConfig();
+  const theme = getTheme(config.theme || 'silver');
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [approval, setApproval] = useState<PendingApproval | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [streamingMsgId, setStreamingMsgId] = useState<number | null>(null);
+  const sessionId = useRef(generateSessionId());
+
   const [agent] = useState<Agent>(() => {
     const callbacks: AgentCallbacks = {
       onThinking: () => {},
@@ -59,17 +75,54 @@ export const App: React.FC = () => {
           { id: ++msgId, role: "assistant", content: text },
         ]);
       },
+      onStreamChunk: (chunk) => {
+        setMessages((prev) => {
+          // Find the streaming message and append to it
+          const last = prev[prev.length - 1];
+          if (last && last.isStreaming) {
+            return [
+              ...prev.slice(0, -1),
+              { ...last, content: last.content + chunk },
+            ];
+          }
+          // Create new streaming message
+          const newId = ++msgId;
+          setStreamingMsgId(newId);
+          return [
+            ...prev,
+            { id: newId, role: "assistant", content: chunk, isStreaming: true },
+          ];
+        });
+      },
+      onStreamEnd: () => {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.isStreaming) {
+            return [
+              ...prev.slice(0, -1),
+              { ...last, isStreaming: false },
+            ];
+          }
+          return prev;
+        });
+        setStreamingMsgId(null);
+      },
       onToolCall: (name, args) => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: ++msgId,
-            role: "tool",
-            content: `Calling ${name}...`,
-            toolName: name,
-            toolSuccess: true,
-          },
-        ]);
+        // End any active stream first
+        setMessages((prev) => {
+          const updated = prev.map(m => m.isStreaming ? { ...m, isStreaming: false } : m);
+          return [
+            ...updated,
+            {
+              id: ++msgId,
+              role: "tool" as const,
+              content: `Calling ${name}...`,
+              toolName: name,
+              toolSuccess: true,
+            },
+          ];
+        });
+        setStreamingMsgId(null);
       },
       onToolResult: (name, result, success) => {
         setMessages((prev) => [
@@ -104,6 +157,31 @@ export const App: React.FC = () => {
     });
   }, []);
 
+  // Save session + flush memory on exit
+  const saveCurrentSession = useCallback(async () => {
+    try {
+      // Flush auto-memory to disk
+      await agent.flushMemory();
+
+      const cost = getSessionCost();
+      const conv = agent.getConversation();
+      const session: SessionRecord = {
+        id: sessionId.current,
+        startedAt: new Date().toISOString(),
+        model: agent.getModel(),
+        cwd: process.cwd(),
+        messageCount: conv.getMessageCount(),
+        totalCostSAR: cost.totalCostSAR,
+        messages: conv.getSerializableMessages(),
+      };
+      if (session.messageCount > 0) {
+        await saveSession(session);
+      }
+    } catch {
+      // Silent fail — don't block exit
+    }
+  }, [agent]);
+
   // Handle y/n for approval
   useInput((input) => {
     if (!approval) return;
@@ -120,13 +198,17 @@ export const App: React.FC = () => {
 
   const handleSubmit = useCallback(
     async (input: string) => {
-      // Handle slash commands — must be /word not a file path like /var/folders/...
-      const SLASH_CMDS = ["help","clear","model","cost","config","memory","skills","exit","api","review","explain","deploy","git","n8n","template","history","whatsapp","health","fix","standup","compact","permissions","mcp"];
+      const SLASH_CMDS = [
+        "help","clear","model","cost","config","memory","skills","exit","api",
+        "review","explain","fix","history","standup","health",
+        "compact","permissions",
+      ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
         const parts = input.slice(1).split(/\s+/);
         const cmd = parts[0];
         const args = parts.slice(1);
+        const argsStr = parts.slice(1).join(" ");
 
         let output = "";
         switch (cmd) {
@@ -139,7 +221,6 @@ export const App: React.FC = () => {
             output = clearCommand();
             break;
           case "model": {
-            // No args → open interactive picker
             if (args.length === 0) {
               setShowModelPicker(true);
               return;
@@ -150,7 +231,7 @@ export const App: React.FC = () => {
               agent.setModel(newModel);
               output = `✅ Switched to ${MODEL_REGISTRY[newModel].name}`;
             } else if (result.startsWith("__LOCKED__")) {
-              output = result; // handled by modelCommand output
+              output = result;
             } else {
               output = result;
             }
@@ -171,22 +252,78 @@ export const App: React.FC = () => {
           case "api":
             output = await apiCommand(args);
             break;
+          case "review":
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleReview(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return; // AI handled the response
+            break;
+          case "explain":
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleExplain(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          case "fix":
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleFix(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          case "history":
+            output = await handleHistory(argsStr);
+            break;
+          case "standup":
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleStandup(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          case "health":
+            output = await handleHealth(argsStr);
+            break;
+          case "compact": {
+            const info = agent.getContextInfo();
+            agent.clearConversation();
+            output = `Context compacted. Was: ~${info.tokens} tokens, ${info.messages} messages. Cleared.`;
+            break;
+          }
+          case "permissions": {
+            const cfg = getConfig();
+            output = [
+              'Current Permissions:',
+              `  File write: ${cfg.permissions.allowFileWrite}`,
+              `  Command run: ${cfg.permissions.allowCommandRun}`,
+              '',
+              'Change with:',
+              '  /config set permissions.allowFileWrite ask|always|never',
+              '  /config set permissions.allowCommandRun ask|always|never',
+            ].join('\n');
+            break;
+          }
           case "exit":
             output = exitCommand();
             setMessages((prev) => [
               ...prev,
               { id: ++msgId, role: "system", content: output },
             ]);
+            await saveCurrentSession();
             setTimeout(() => exit(), 500);
             return;
           default:
             output = `Unknown command: /${cmd}. Type /help for available commands.`;
         }
 
-        setMessages((prev) => [
-          ...prev,
-          { id: ++msgId, role: "system", content: output },
-        ]);
+        if (output) {
+          setMessages((prev) => [
+            ...prev,
+            { id: ++msgId, role: "system", content: output },
+          ]);
+        }
         return;
       }
 
@@ -209,13 +346,16 @@ export const App: React.FC = () => {
 
       setIsLoading(false);
     },
-    [agent, exit]
+    [agent, exit, saveCurrentSession]
   );
+
+  // Context info for status bar
+  const contextInfo = initialized ? agent.getContextInfo() : { tokens: 0, messages: 0 };
 
   return (
     <Box flexDirection="column" paddingX={1}>
       <Text>{getBannerText(agent.getModel())}</Text>
-      <Text color="gray">
+      <Text color={theme.dim}>
         {`  Model: ${MODEL_REGISTRY[agent.getModel()]?.name || agent.getModel()} | Type /help for commands\n`}
       </Text>
 
@@ -226,15 +366,17 @@ export const App: React.FC = () => {
           content={msg.content}
           toolName={msg.toolName}
           toolSuccess={msg.toolSuccess}
+          isStreaming={msg.isStreaming}
+          theme={theme}
         />
       ))}
 
-      {isLoading && !approval && <Spinner label="Thinking..." />}
+      {isLoading && !approval && !streamingMsgId && <Spinner label="Thinking..." />}
 
       {approval && (
         <Box flexDirection="column" marginY={1}>
-          <Text bold>{`⚡ ${approval.toolName}`}</Text>
-          <Text color="gray">
+          <Text bold color={theme.warning}>{`⚡ ${approval.toolName}`}</Text>
+          <Text color={theme.dim}>
             {Object.entries(approval.args)
               .map(([k, v]) => {
                 const val =
@@ -247,9 +389,9 @@ export const App: React.FC = () => {
           </Text>
           <Text>
             {"  Allow? "}
-            <Text color="green">{"[y]"}</Text>
+            <Text color={theme.success}>{"[y]"}</Text>
             <Text>{" / "}</Text>
-            <Text color="red">{"[n]"}</Text>
+            <Text color={theme.error}>{"[n]"}</Text>
           </Text>
         </Box>
       )}
@@ -279,7 +421,15 @@ export const App: React.FC = () => {
       )}
 
       {!isLoading && !approval && !showModelPicker && initialized && (
-        <Prompt onSubmit={handleSubmit} isLoading={false} />
+        <>
+          {/* Status bar */}
+          <Box marginTop={0}>
+            <Text color={theme.dim}>
+              {`  ${contextInfo.messages} msgs | ~${Math.round(contextInfo.tokens / 1000)}K tokens`}
+            </Text>
+          </Box>
+          <Prompt onSubmit={handleSubmit} isLoading={false} />
+        </>
       )}
     </Box>
   );

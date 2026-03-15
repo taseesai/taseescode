@@ -40,6 +40,11 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/n8n",            syntax: "/n8n [description]",     desc: "Generate n8n workflow",      descAr: "توليد workflow لـ n8n" },
   { cmd: "/template",       syntax: "/template [name]",       desc: "Scaffold from template",     descAr: "بناء مشروع من قالب" },
   { cmd: "/history",        syntax: "/history",               desc: "Browse past sessions",       descAr: "تصفح الجلسات السابقة" },
+  { cmd: "/compact",        syntax: "/compact",               desc: "Compact conversation",       descAr: "ضغط المحادثة" },
+  { cmd: "/permissions",    syntax: "/permissions",            desc: "View permissions",           descAr: "عرض الصلاحيات" },
+  { cmd: "/api add",        syntax: "/api add [name] [url]",  desc: "Connect any API",            descAr: "ربط API خارجي" },
+  { cmd: "/api list",       syntax: "/api list",              desc: "List connected APIs",        descAr: "عرض الاتصالات" },
+  { cmd: "/api test",       syntax: "/api test [name]",       desc: "Test API connection",        descAr: "اختبار الاتصال" },
   { cmd: "/exit",           syntax: "/exit",                  desc: "Exit TaseesCode",            descAr: "الخروج" },
 ];
 

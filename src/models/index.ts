@@ -165,12 +165,22 @@ export interface ModelResponse {
   finishReason: string;
 }
 
+export type StreamCallback = (chunk: string) => void;
+
 export interface ModelProvider {
   chat(
     messages: ChatMessage[],
     tools: ToolDefinition[],
     apiKey: string,
     modelId: string
+  ): Promise<ModelResponse>;
+
+  chatStream?(
+    messages: ChatMessage[],
+    tools: ToolDefinition[],
+    apiKey: string,
+    modelId: string,
+    onChunk: StreamCallback
   ): Promise<ModelResponse>;
 }
 

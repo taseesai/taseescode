@@ -5,8 +5,10 @@ import {
   ToolDefinition,
   ModelResponse,
   MODEL_REGISTRY,
+  StreamCallback,
 } from "./index";
 import { getConfig } from "../utils/config";
+import { parseOpenAICompatibleSSE } from "./stream-utils";
 
 export class CustomProvider implements ModelProvider {
   async chat(
@@ -137,6 +139,79 @@ export class CustomProvider implements ModelProvider {
         throw new Error(`${apiName} API error: ${msg}`);
       }
       throw err;
+    }
+  }
+
+  async chatStream(
+    messages: ChatMessage[],
+    tools: ToolDefinition[],
+    _apiKey: string,
+    modelId: string,
+    onChunk: StreamCallback
+  ): Promise<ModelResponse> {
+    const apiName = modelId.replace("custom:", "");
+    const cfg = getConfig();
+    const api = cfg.customApis?.[apiName];
+
+    if (!api) {
+      throw new Error(`Custom API "${apiName}" not found. Add it with: /api add ${apiName} <url>`);
+    }
+
+    const modelConfig = MODEL_REGISTRY[modelId];
+    const modelToUse = api.model || modelConfig?.model || "default";
+
+    const body: Record<string, unknown> = {
+      model: modelToUse,
+      messages: messages.map((m) => {
+        const msg: Record<string, unknown> = {
+          role: m.role,
+          content: m.content,
+        };
+        if (m.images && m.images.length > 0 && m.role === "user") {
+          const content: Array<Record<string, unknown>> = [];
+          for (const img of m.images) {
+            if (img.type === "url") {
+              content.push({ type: "image_url", image_url: { url: img.url } });
+            } else {
+              content.push({ type: "image_url", image_url: { url: `data:${img.mediaType};base64,${img.data}` } });
+            }
+          }
+          content.push({ type: "text", text: m.content });
+          msg.content = content;
+        }
+        if (m.tool_calls) msg.tool_calls = m.tool_calls;
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+        if (m.name) msg.name = m.name;
+        return msg;
+      }),
+      temperature: 0.7,
+      max_tokens: 4096,
+      stream: true,
+    };
+
+    if (tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
+
+    const baseUrl = api.baseUrl.replace(/\/+$/, "");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (api.apiKey) {
+      headers["Authorization"] = `Bearer ${api.apiKey}`;
+    }
+
+    try {
+      return await parseOpenAICompatibleSSE(
+        `${baseUrl}/chat/completions`,
+        body,
+        headers,
+        onChunk
+      );
+    } catch {
+      // Fall back to non-streaming
+      return this.chat(messages, tools, _apiKey, modelId);
     }
   }
 }

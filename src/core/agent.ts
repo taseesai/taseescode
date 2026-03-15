@@ -7,6 +7,7 @@ import {
   ToolCall,
   MODEL_REGISTRY,
   loadCustomModelsFromConfig,
+  StreamCallback,
 } from "../models";
 import { getConfig } from "../utils/config";
 import { trackUsage } from "../utils/cost";
@@ -15,10 +16,14 @@ import { detectImages, loadImage, detectVideos, extractVideoFrames, ImageAttachm
 import { readProjectContext, buildFileTree } from "./context";
 import { readMemory } from "./memory";
 import { loadAllSkills } from "../skills/loader";
+import { withRetry } from "../utils/retry";
+import { AutoMemory } from "./auto-memory";
 
 export interface AgentCallbacks {
   onThinking: () => void;
   onResponse: (text: string) => void;
+  onStreamChunk?: (chunk: string) => void;
+  onStreamEnd?: () => void;
   onToolCall: (name: string, args: Record<string, unknown>) => void;
   onToolResult: (name: string, result: string, success: boolean) => void;
   onApprovalNeeded: (
@@ -50,38 +55,65 @@ IDENTITY & KNOWLEDGE:
 
 TOOLS: read_file, write_file, create_file, delete_file, list_files, run_command, search_code, git_diff, git_commit
 
-BEHAVIOR: concise, show diffs on edits, always ask before destructive ops, read TASEESCODE.md on startup`;
+BEHAVIOR:
+- Be concise and direct. Lead with the answer, not reasoning.
+- Show diffs when editing files. Always explain what changed.
+- Always ask before destructive operations (delete, overwrite, force push).
+- Read TASEESCODE.md on startup for project context.
+- When writing code, follow existing patterns and conventions in the project.
+- Prefer editing existing files over creating new ones.
+- Use markdown formatting for readability.`;
 
 export class Agent {
   private conversation: Conversation;
   private currentModel: string;
   private callbacks: AgentCallbacks;
+  private streamingEnabled: boolean = true;
+  private autoMemory: AutoMemory;
 
   constructor(callbacks: AgentCallbacks) {
-    this.conversation = new Conversation();
-    this.currentModel = getConfig().defaultModel;
+    const config = getConfig();
+    const contextLimit = config.contextLimit || 80000;
+    this.conversation = new Conversation(contextLimit);
+    this.currentModel = config.defaultModel;
     this.callbacks = callbacks;
+    this.autoMemory = new AutoMemory(process.cwd());
   }
 
   async initialize(cwd: string): Promise<void> {
-    // Load custom API models from config
     loadCustomModelsFromConfig();
+
+    // Initialize auto-memory (creates dir, gitignore)
+    this.autoMemory = new AutoMemory(cwd);
+    await this.autoMemory.init();
 
     const context = await readProjectContext(cwd);
     const memory = await readMemory(cwd);
     const skills = await loadAllSkills();
 
+    // Load persistent auto-memory
+    const autoMemoryContent = await this.autoMemory.load();
+
     let systemPrompt = SYSTEM_PROMPT;
 
-    // Add project context
     systemPrompt += `\n\nPROJECT CONTEXT:\n- Working directory: ${cwd}\n- Git repository: ${context.hasGit ? "yes" : "no"}\n- Files:\n${buildFileTree(context.files)}`;
 
-    // Add memory if exists
     if (memory) {
       systemPrompt += `\n\nTASEESCODE.md (project memory):\n${memory}`;
     }
 
-    // Add skill prompts
+    // Inject auto-memory — the AI silently knows everything from past sessions
+    if (autoMemoryContent) {
+      systemPrompt += `\n\nPERSISTENT MEMORY (auto-saved from all past sessions — you remember everything):
+${autoMemoryContent}
+
+MEMORY RULES:
+- You have perfect memory of all past conversations in this project.
+- Reference past context naturally without saying "according to my memory" or "I recall".
+- Just know it. Act on it. Like a colleague who was there the whole time.
+- Never tell the user you're reading from memory — just seamlessly continue where you left off.`;
+    }
+
     for (const skill of skills) {
       if (skill.systemPromptAddition) {
         systemPrompt += `\n\n${skill.systemPromptAddition}`;
@@ -94,7 +126,10 @@ export class Agent {
   async processMessage(userMessage: string): Promise<string> {
     const lang = detectLanguage(userMessage);
 
-    // Detect videos in the message and extract frames
+    // Auto-memory: silently record user message
+    this.autoMemory.recordUser(userMessage);
+
+    // Handle videos
     const videoPaths = detectVideos(userMessage);
     let images: ImageAttachment[] = [];
     let originalModel: string | null = null;
@@ -112,14 +147,13 @@ export class Agent {
       }
     }
 
-    // Detect images in the message
+    // Handle images
     const imagePaths = detectImages(userMessage);
 
     if (imagePaths.length > 0 || images.length > 0) {
       const modelConfig = getModelConfig(this.currentModel);
 
       if (!modelConfig.supportsVision) {
-        // Auto-route to a vision-capable model
         const visionModelIds = ["claude-sonnet", "gpt-4o"];
         const config = getConfig();
         const availableVisionModel = visionModelIds.find((id) => {
@@ -143,15 +177,12 @@ export class Agent {
               "  To analyze images, set one of these keys:",
               "  /config set apiKeys.anthropic sk-ant-...   (Claude Sonnet)",
               "  /config set apiKeys.openai sk-...          (GPT-4o)",
-              "",
-              "  Get a free Anthropic key at: console.anthropic.com",
             ].join("\n")
           );
           return "";
         }
       }
 
-      // Load all detected images
       for (const imgPath of imagePaths) {
         try {
           const img = await loadImage(imgPath);
@@ -163,7 +194,7 @@ export class Agent {
       }
     }
 
-    // Add message — with or without images
+    // Add message
     if (images.length > 0) {
       this.conversation.addUserWithImages(userMessage, images);
     } else {
@@ -178,7 +209,6 @@ export class Agent {
 
       const config = getConfig();
       const modelConfig = getModelConfig(this.currentModel);
-      // Custom providers use their own API key from customApis config
       const apiKey = modelConfig.provider === "custom"
         ? (config.customApis?.[this.currentModel.replace("custom:", "")]?.apiKey || "none")
         : config.apiKeys[modelConfig.provider as keyof typeof config.apiKeys];
@@ -197,12 +227,35 @@ export class Agent {
       const tools = getToolDefinitions();
 
       try {
-        response = await provider.chat(
-          this.conversation.getMessages(),
-          tools,
-          apiKey,
-          this.currentModel
-        );
+        // Try streaming first, fall back to batch
+        const streamCallback: StreamCallback | undefined =
+          this.streamingEnabled && this.callbacks.onStreamChunk
+            ? this.callbacks.onStreamChunk
+            : undefined;
+
+        response = await withRetry(async () => {
+          if (streamCallback && provider.chatStream) {
+            return provider.chatStream(
+              this.conversation.getMessages(),
+              tools,
+              apiKey,
+              this.currentModel,
+              streamCallback
+            );
+          } else {
+            return provider.chat(
+              this.conversation.getMessages(),
+              tools,
+              apiKey,
+              this.currentModel
+            );
+          }
+        }, { maxRetries: 2 });
+
+        // Signal stream end
+        if (streamCallback && this.callbacks.onStreamEnd) {
+          this.callbacks.onStreamEnd();
+        }
       } catch (err: unknown) {
         if (originalModel) this.currentModel = originalModel;
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -217,33 +270,68 @@ export class Agent {
         response.outputTokens
       );
 
-      // If no tool calls, we're done
+      // No tool calls → done
       if (!response.toolCalls || response.toolCalls.length === 0) {
         if (originalModel) this.currentModel = originalModel;
         this.conversation.addAssistant(response.content);
-        this.callbacks.onResponse(response.content);
+        // Auto-memory: silently record assistant response
+        this.autoMemory.recordAssistant(response.content);
+        // Only send onResponse if we weren't streaming (streaming already showed the text)
+        if (!this.callbacks.onStreamChunk || !provider.chatStream) {
+          this.callbacks.onResponse(response.content);
+        }
         return response.content;
       }
 
       // Process tool calls
       this.conversation.addAssistant(response.content, response.toolCalls);
 
+      // Show any text content before tool calls (if not already streamed)
+      if (response.content && (!this.callbacks.onStreamChunk || !provider.chatStream)) {
+        this.callbacks.onResponse(response.content);
+      }
+
       for (const toolCall of response.toolCalls) {
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(toolCall.function.arguments);
         } catch {
-          // continue with empty args
+          // Try to salvage malformed JSON
+          try {
+            const cleaned = toolCall.function.arguments
+              .replace(/[\x00-\x1F]+/g, ' ')
+              .replace(/,\s*}/g, '}')
+              .replace(/,\s*]/g, ']');
+            args = JSON.parse(cleaned);
+          } catch {
+            // Give up, use empty args
+          }
         }
 
         this.callbacks.onToolCall(toolCall.function.name, args);
 
+        // Check permissions
         const tool = getTool(toolCall.function.name);
         if (tool?.requiresApproval) {
-          const approved = await this.callbacks.onApprovalNeeded(
-            toolCall.function.name,
-            args
-          );
+          const config = getConfig();
+          const permKey = toolCall.function.name.includes('command')
+            ? 'allowCommandRun'
+            : 'allowFileWrite';
+          const perm = config.permissions[permKey as keyof typeof config.permissions];
+
+          let approved = false;
+          if (perm === 'always') {
+            approved = true;
+          } else if (perm === 'never') {
+            approved = false;
+          } else {
+            // 'ask' — prompt user
+            approved = await this.callbacks.onApprovalNeeded(
+              toolCall.function.name,
+              args
+            );
+          }
+
           if (!approved) {
             this.conversation.addToolResult(
               toolCall.id,
@@ -274,12 +362,15 @@ export class Agent {
           result.output || result.error || "",
           result.success
         );
+        // Auto-memory: silently record tool execution
+        this.autoMemory.recordTool(
+          toolCall.function.name,
+          result.success,
+          result.output || result.error
+        );
       }
-
-      // Loop back to get next response after tool results
     }
 
-    // Restore original model if we auto-switched for vision
     if (originalModel) {
       this.currentModel = originalModel;
     }
@@ -301,5 +392,26 @@ export class Agent {
 
   getConversation(): Conversation {
     return this.conversation;
+  }
+
+  getContextInfo(): { tokens: number; messages: number } {
+    return {
+      tokens: this.conversation.getTokenEstimate(),
+      messages: this.conversation.getMessageCount(),
+    };
+  }
+
+  /**
+   * Flush auto-memory to disk — call on exit
+   */
+  async flushMemory(): Promise<void> {
+    await this.autoMemory.flush();
+  }
+
+  /**
+   * Get auto-memory stats
+   */
+  async getMemoryStats(): Promise<{ entries: number; sizeKB: number } | null> {
+    return this.autoMemory.getStats();
   }
 }
