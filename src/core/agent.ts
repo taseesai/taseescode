@@ -11,7 +11,7 @@ import {
 import { getConfig } from "../utils/config";
 import { trackUsage } from "../utils/cost";
 import { detectLanguage } from "../utils/lang-detect";
-import { detectImages, loadImage, ImageAttachment } from "../utils/image";
+import { detectImages, loadImage, detectVideos, extractVideoFrames, ImageAttachment } from "../utils/image";
 import { readProjectContext, buildFileTree } from "./context";
 import { readMemory } from "./memory";
 import { loadAllSkills } from "../skills/loader";
@@ -87,12 +87,28 @@ export class Agent {
   async processMessage(userMessage: string): Promise<string> {
     const lang = detectLanguage(userMessage);
 
-    // Detect images in the message
-    const imagePaths = detectImages(userMessage);
+    // Detect videos in the message and extract frames
+    const videoPaths = detectVideos(userMessage);
     let images: ImageAttachment[] = [];
     let originalModel: string | null = null;
 
-    if (imagePaths.length > 0) {
+    for (const videoPath of videoPaths) {
+      try {
+        this.callbacks.onResponse(`🎬 Video detected: ${videoPath}\n   Extracting frames with ffmpeg...`);
+        const result = await extractVideoFrames(videoPath, 6);
+        this.callbacks.onResponse(
+          `🎬 Extracted ${result.frameCount} frames from ${Math.round(result.duration)}s video`
+        );
+        images.push(...result.frames);
+      } catch (err) {
+        this.callbacks.onError(`Could not process video: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Detect images in the message
+    const imagePaths = detectImages(userMessage);
+
+    if (imagePaths.length > 0 || images.length > 0) {
       const modelConfig = getModelConfig(this.currentModel);
 
       if (!modelConfig.supportsVision) {
