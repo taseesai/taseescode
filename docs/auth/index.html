@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TaseesCode — Connect Your Account</title>
+  <meta name="description" content="Authenticate your AI provider with TaseesCode">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: #0a0a0a;
+      color: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 460px;
+      width: 100%;
+    }
+    .card {
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      padding: 44px 40px;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #e8e8e8;
+      letter-spacing: -0.3px;
+    }
+    .logo .dim { color: #555; }
+    .subtitle {
+      color: #555;
+      font-size: 14px;
+      margin-bottom: 36px;
+    }
+    .provider-name {
+      display: inline-block;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b8b8b;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .step {
+      margin-bottom: 24px;
+    }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      font-size: 11px;
+      font-weight: 700;
+      color: #707070;
+      margin-right: 10px;
+    }
+    .step-label {
+      color: #8b8b8b;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .provider-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 14px 18px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      color: #e8e8e8;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      margin-top: 10px;
+      transition: all 0.2s;
+    }
+    .provider-btn:hover { border-color: #444; background: #1e1e1e; }
+    .provider-btn .arrow { color: #555; font-size: 16px; }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .divider-line { flex: 1; height: 1px; background: #222; }
+    .divider-text { color: #333; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
+    .key-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      color: #e8e8e8;
+      font-size: 14px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      outline: none;
+      margin-top: 10px;
+      transition: border-color 0.2s;
+    }
+    .key-input:focus { border-color: #555; }
+    .key-input::placeholder { color: #333; }
+    .connect-btn {
+      width: 100%;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, #555 0%, #777 50%, #555 100%);
+      background-size: 200% 100%;
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 12px;
+      letter-spacing: 0.3px;
+    }
+    .connect-btn:hover {
+      background-position: 100% 0;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .connect-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      min-height: 20px;
+      text-align: center;
+    }
+    .status.error { color: #c75050; }
+    .status.success { color: #5a9e6f; }
+    .status.loading { color: #707070; }
+    .footer {
+      color: #2a2a2a;
+      font-size: 11px;
+      margin-top: 28px;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .security-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #333;
+      font-size: 11px;
+      margin-top: 8px;
+    }
+    .security-badge .lock { font-size: 10px; }
+
+    /* Success state */
+    .success-view {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    .success-check {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #1a2e1a;
+      border: 2px solid #2d5a2d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 20px;
+    }
+    .success-view h2 {
+      color: #5a9e6f;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .success-view p {
+      color: #555;
+      font-size: 14px;
+    }
+
+    /* Error state — no CLI */
+    .error-view {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    .error-view h2 {
+      color: #c75050;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .error-view p {
+      color: #555;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .error-view code {
+      background: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #8b8b8b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" id="auth-card">
+      <div class="logo">◆ TaseesCode <span class="dim">Authentication</span></div>
+      <div class="subtitle">Connect your AI provider to start coding</div>
+
+      <div class="provider-name" id="provider-badge">ANTHROPIC</div>
+
+      <div class="step">
+        <span class="step-number">1</span>
+        <span class="step-label">Get your API key</span>
+        <a href="#" target="_blank" class="provider-btn" id="console-link">
+          <span>Open <span id="provider-name-text">Anthropic</span> Console</span>
+          <span class="arrow">→</span>
+        </a>
+      </div>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-text">then</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">2</span>
+        <span class="step-label">Paste your key below</span>
+        <input type="password" class="key-input" id="key-input" placeholder="sk-ant-..." autocomplete="off" autofocus>
+      </div>
+
+      <button class="connect-btn" id="connect-btn" onclick="connect()" disabled>Connect to TaseesCode</button>
+      <div class="status" id="status"></div>
+
+      <div class="footer">
+        Your key is validated directly with the provider's API.<br>
+        It is sent only to your local TaseesCode instance — never to any external server.
+        <div class="security-badge"><span class="lock">🔒</span> Encrypted in transit · Stored locally only</div>
+      </div>
+    </div>
+
+    <!-- Success view -->
+    <div class="card success-view" id="success-card">
+      <div class="success-check">✓</div>
+      <h2>Connected!</h2>
+      <p>Return to your terminal — TaseesCode is ready.</p>
+      <p style="margin-top: 16px; color: #333;">You can close this tab.</p>
+    </div>
+
+    <!-- Error view — CLI not running -->
+    <div class="card error-view" id="error-card">
+      <h2>TaseesCode Not Running</h2>
+      <p>
+        This page needs TaseesCode running in your terminal.<br><br>
+        Start it with: <code>taseescode</code><br><br>
+        Then select a Claude model during setup.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // Parse URL params
+    const params = new URLSearchParams(window.location.search);
+    const port = params.get('port');
+    const provider = params.get('provider') || 'Anthropic';
+    const providerUrl = params.get('url') || 'https://console.anthropic.com/settings/keys';
+
+    // Update UI with provider info
+    document.getElementById('provider-badge').textContent = provider.toUpperCase();
+    document.getElementById('provider-name-text').textContent = provider;
+    document.getElementById('console-link').href = providerUrl;
+
+    // Update placeholder based on provider
+    const placeholders = {
+      'Anthropic': 'sk-ant-...',
+      'OpenAI': 'sk-...',
+      'Groq': 'gsk_...',
+      'Kimi': 'sk-...',
+    };
+    document.getElementById('key-input').placeholder = placeholders[provider] || 'Your API key...';
+
+    const input = document.getElementById('key-input');
+    const btn = document.getElementById('connect-btn');
+    const status = document.getElementById('status');
+
+    // Check if CLI is running
+    if (!port) {
+      document.getElementById('auth-card').style.display = 'none';
+      document.getElementById('error-card').style.display = 'block';
+    }
+
+    input.addEventListener('input', () => {
+      btn.disabled = input.value.length < 5;
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.length >= 5) connect();
+    });
+
+    async function connect() {
+      const key = input.value.trim();
+      if (!key || !port) return;
+
+      btn.disabled = true;
+      status.className = 'status loading';
+      status.textContent = 'Verifying with ' + provider + '...';
+
+      try {
+        const res = await fetch('http://localhost:' + port + '/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          status.className = 'status success';
+          status.textContent = '';
+          document.getElementById('auth-card').style.display = 'none';
+          document.getElementById('success-card').style.display = 'block';
+        } else {
+          status.className = 'status error';
+          status.textContent = data.error || 'Invalid key. Please check and try again.';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        status.className = 'status error';
+        status.textContent = 'Cannot connect to TaseesCode. Make sure it\'s running in your terminal.';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
