@@ -29,10 +29,12 @@ export class GroqProvider implements ModelProvider {
         return msg;
       }),
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: config.contextWindow <= 8192 ? 2048 : 4096,
     };
 
-    if (tools.length > 0) {
+    // Groq tool calling only supported on Llama models, not Mixtral/Gemma
+    const toolSupportedModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    if (tools.length > 0 && toolSupportedModels.includes(config.model)) {
       body.tools = tools;
       body.tool_choice = "auto";
     }
