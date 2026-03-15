@@ -46,13 +46,14 @@ export class GroqProvider implements ModelProvider {
     };
 
     // Groq tool calling supported models
+    // Only these Groq models support tool/function calling
     const toolSupportedModels = [
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
       "meta-llama/llama-4-scout-17b-16e-instruct",
       "moonshotai/kimi-k2-instruct",
       "qwen/qwen3-32b",
-      "groq/compound",
+      // groq/compound, allam-2-7b — do NOT support tool calling
     ];
     if (tools.length > 0 && toolSupportedModels.includes(config.model)) {
       body.tools = tools;

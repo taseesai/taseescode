@@ -122,7 +122,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 4096,
-    bestFor: "Free · Saudi Arabic specialist · KACST model",
+    bestFor: "Free · Saudi Arabic · Chat only · KACST",
   },
   "compound": {
     name: "Groq Compound",
@@ -132,7 +132,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 131072,
-    bestFor: "Free · Groq agentic · Compound reasoning",
+    bestFor: "Free · Chat only · Groq compound reasoning",
   },
   
 };
