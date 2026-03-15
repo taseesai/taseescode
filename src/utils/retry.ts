@@ -43,9 +43,14 @@ export async function withRetry<T>(
         throw error;
       }
 
+      // Rate limits (429) get longer waits
+      const is429 = (error?.response?.status === 429) || (error?.message || '').includes('429');
+      const baseDelay = is429 ? 5000 : opts.initialDelayMs;
+      const maxDelay = is429 ? 30000 : opts.maxDelayMs;
+
       const delay = Math.min(
-        opts.initialDelayMs * Math.pow(2, attempt) + Math.random() * 500,
-        opts.maxDelayMs
+        baseDelay * Math.pow(2, attempt) + Math.random() * 1000,
+        maxDelay
       );
 
       await sleep(delay);

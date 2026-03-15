@@ -71,14 +71,14 @@ export class AnthropicProvider implements ModelProvider {
     messages: ChatMessage[],
     tools: ToolDefinition[],
     apiKey: string,
-    _modelId: string
+    modelId: string
   ): Promise<ModelResponse> {
-    const config = MODEL_REGISTRY["claude-sonnet"];
+    const config = MODEL_REGISTRY[modelId] || MODEL_REGISTRY["claude-sonnet"];
     const { systemMsg, anthropicMessages } = buildAnthropicMessages(messages);
 
     const body: Record<string, unknown> = {
       model: config.model,
-      max_tokens: 4096,
+      max_tokens: modelId === "claude-opus" ? 16384 : 8096,
       messages: anthropicMessages,
     };
 
@@ -140,15 +140,15 @@ export class AnthropicProvider implements ModelProvider {
     messages: ChatMessage[],
     tools: ToolDefinition[],
     apiKey: string,
-    _modelId: string,
+    modelId: string,
     onChunk: StreamCallback
   ): Promise<ModelResponse> {
-    const config = MODEL_REGISTRY["claude-sonnet"];
+    const config = MODEL_REGISTRY[modelId] || MODEL_REGISTRY["claude-sonnet"];
     const { systemMsg, anthropicMessages } = buildAnthropicMessages(messages);
 
     const body: Record<string, unknown> = {
       model: config.model,
-      max_tokens: 4096,
+      max_tokens: modelId === "claude-opus" ? 16384 : 8096,
       messages: anthropicMessages,
       stream: true,
     };
@@ -276,7 +276,7 @@ export class AnthropicProvider implements ModelProvider {
       };
     } catch {
       // Fall back to non-streaming
-      return this.chat(messages, tools, apiKey, _modelId);
+      return this.chat(messages, tools, apiKey, modelId);
     }
   }
 }

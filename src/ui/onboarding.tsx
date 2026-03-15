@@ -1,652 +1,622 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, useApp } from "ink";
-import boxen from "boxen";
 import chalk from "chalk";
 import axios from "axios";
-import { setConfig, setNestedConfig, TaseesConfig } from "../utils/config";
+import { setConfig, setNestedConfig } from "../utils/config";
+import { startAuthServer } from "../utils/auth-server";
 
-// Color palette
-const c = {
-  step: chalk.hex("#4A4A4A"),
-  selected: chalk.hex("#E8E8E8").bold,
-  unselected: chalk.hex("#707070"),
-  headAr: chalk.hex("#ABABAB"),
-  headEn: chalk.hex("#8B8B8B"),
-  success: chalk.hex("#E8E8E8"),
-  border: "#8B8B8B",
+// ──── Palette ────
+const p = {
+  white: chalk.hex("#E8E8E8"),
+  silver: chalk.hex("#ABABAB"),
+  gray: chalk.hex("#8B8B8B"),
+  dim: chalk.hex("#4A4A4A"),
+  accent: chalk.hex("#707070"),
+  green: chalk.hex("#5A9E6F"),
+  red: chalk.hex("#C75050"),
+  gold: chalk.hex("#C9A962"),
 };
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
-type Step =
-  | "welcome"
-  | "language"
-  | "model"
-  | "apikey"
-  | "permissions"
-  | "theme"
-  | "done";
+type Step = "welcome" | "language" | "model" | "apikey" | "permissions" | "theme" | "ready";
 
-const STEPS_ORDER: Step[] = [
-  "welcome",
-  "language",
-  "model",
-  "apikey",
-  "permissions",
-  "theme",
-  "done",
-];
+const STEPS: Step[] = ["welcome", "language", "model", "apikey", "permissions", "theme", "ready"];
+
+// ──── Data ────
 
 interface ModelOption {
   id: string;
-  label: string;
+  name: string;
+  tag: string;
   desc: string;
   needsKey: boolean;
   keyType?: "anthropic" | "openai" | "groq" | "kimi";
-  freeKey?: boolean;
+  free?: boolean;
 }
 
 const MODELS: ModelOption[] = [
-  {
-    id: "deepseek-v3",
-    label: "\u2726 DeepSeek V3",
-    desc: "Cheap \u00b7 Fast \u00b7 Arabic \u2713",
-    needsKey: false,
-  },
-  {
-    id: "llama-3.3-70b",
-    label: "\u2726 Llama 3.3 70B",
-    desc: "Free \u00b7 Groq \u00b7 Arabic \u2713",
-    needsKey: true,
-    keyType: "groq",
-    freeKey: true,
-  },
-  {
-    id: "qwen-2.5-coder",
-    label: "\u25c8 Qwen 2.5 Coder",
-    desc: "Free key \u00b7 Best for code",
-    needsKey: false,
-  },
-  {
-    id: "kimi-k1.5",
-    label: "\u25c6 Kimi K1.5",
-    desc: "128K context \u00b7 Arabic \u2713",
-    needsKey: true,
-    keyType: "kimi",
-  },
-  {
-    id: "claude-sonnet",
-    label: "\u25c6 Claude Sonnet",
-    desc: "Paid \u00b7 Best quality",
-    needsKey: true,
-    keyType: "anthropic",
-  },
-  {
-    id: "gpt-4o",
-    label: "\u25c7 GPT-4o",
-    desc: "Paid \u00b7 OpenAI",
-    needsKey: true,
-    keyType: "openai",
-  },
+  { id: "deepseek-v3",   name: "DeepSeek V3",     tag: "RECOMMENDED",  desc: "Low cost · Fast · Great Arabic",   needsKey: false },
+  { id: "llama-3.3-70b", name: "Llama 3.3 70B",   tag: "FREE",         desc: "Groq · Strong · Arabic",          needsKey: true, keyType: "groq", free: true },
+  { id: "kimi-k2",       name: "Kimi K2",         tag: "FREE",         desc: "Groq · Agentic · Arabic",         needsKey: true, keyType: "groq", free: true },
+  { id: "qwen3-32b",     name: "Qwen 3 32B",      tag: "FREE",         desc: "Groq · Strong coder",             needsKey: true, keyType: "groq", free: true },
+  { id: "llama-4-scout",  name: "Llama 4 Scout",  tag: "FREE",         desc: "Groq · Latest Llama 4",           needsKey: true, keyType: "groq", free: true },
+  { id: "claude-opus",    name: "Claude Opus 4.6", tag: "MOST CAPABLE", desc: "Deep reasoning · Agentic · 200K", needsKey: true, keyType: "anthropic" },
+  { id: "claude-sonnet",  name: "Claude Sonnet 4.6", tag: "BEST VALUE", desc: "Fast + smart · 200K context",    needsKey: true, keyType: "anthropic" },
+  { id: "gpt-4o",         name: "GPT-4o",          tag: "PREMIUM",      desc: "OpenAI · Vision · Broad",         needsKey: true, keyType: "openai" },
+  { id: "kimi-k1.5",      name: "Kimi K1.5",      tag: "LOW COST",     desc: "128K context · Arabic",           needsKey: true, keyType: "kimi" },
 ];
 
 const LANGUAGES = [
-  {
-    id: "ar" as const,
-    label: "\ud83c\uddf8\ud83c\udde6 \u0627\u0644\u0639\u0631\u0628\u064a\u0629 \u0623\u0648\u0644\u0627\u064b \u2014 Arabic first",
-  },
-  { id: "en" as const, label: "\ud83c\udf10 English first" },
-  {
-    id: "auto" as const,
-    label: "\u26a1 Auto-detect from input (recommended)",
-  },
+  { id: "auto" as const, label: "Auto-detect", labelAr: "كشف تلقائي", desc: "Detects from your input", icon: "⚡" },
+  { id: "ar" as const,   label: "العربية أولاً", labelAr: "Arabic first", desc: "Responds in Arabic by default", icon: "🇸🇦" },
+  { id: "en" as const,   label: "English first", labelAr: "الإنجليزية أولاً", desc: "Responds in English by default", icon: "🌐" },
 ];
 
 const THEMES = [
-  {
-    id: "silver" as const,
-    label: "\u25c6 Silver  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2014 Default (\u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a)",
-  },
-  {
-    id: "minimal" as const,
-    label: "\u25c8 Minimal \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  \u2014 Clean",
-  },
-  {
-    id: "dark" as const,
-    label: "\u2726 Dark    \u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593  \u2014 High contrast",
-  },
+  { id: "silver" as const,  label: "Silver",  desc: "Warm metallic — default", blocks: "░▒▓█" },
+  { id: "minimal" as const, label: "Minimal", desc: "Clean monochrome",        blocks: "░░░░" },
+  { id: "dark" as const,    label: "Dark",    desc: "High contrast",           blocks: "████" },
 ];
 
 type PermLevel = "ask" | "session" | "always";
-
-const PERM_FILE_OPTIONS: { id: PermLevel; label: string }[] = [
-  {
-    id: "ask",
-    label: "\ud83d\udd12 Always ask \u2014 Safest (recommended)",
-  },
-  { id: "session", label: "\u26a1 Ask once per session \u2014 Balanced" },
-  { id: "always", label: "\ud83d\ude80 Auto-approve \u2014 Fastest (advanced users)" },
-];
-
-const PERM_CMD_OPTIONS: { id: PermLevel; label: string }[] = [
-  {
-    id: "ask",
-    label: "\ud83d\udd12 Always ask \u2014 Safest (recommended)",
-  },
-  { id: "session", label: "\u26a1 Ask once per session \u2014 Balanced" },
-  { id: "always", label: "\u2620\ufe0f  Auto-approve \u2014 Dangerous!" },
-];
 
 export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const { exit } = useApp();
   const [step, setStep] = useState<Step>("welcome");
   const [cursor, setCursor] = useState(0);
-  const [permSection, setPermSection] = useState<"file" | "cmd">("file");
+  const [permPhase, setPermPhase] = useState<"file" | "cmd">("file");
 
-  // Collected config
+  // Collected choices
   const [language, setLanguage] = useState<"auto" | "ar" | "en">("auto");
   const [model, setModel] = useState("deepseek-v3");
   const [apiKey, setApiKey] = useState("");
-  const [apiKeyStatus, setApiKeyStatus] = useState<
-    "input" | "validating" | "valid" | "invalid"
-  >("input");
+  const [apiKeyStatus, setApiKeyStatus] = useState<"input" | "validating" | "valid" | "invalid">("input");
+  const [authMethod, setAuthMethod] = useState<"choose" | "oauth" | "apikey">("choose");
+  const [oauthStatus, setOauthStatus] = useState<"waiting" | "polling" | "success" | "failed">("waiting");
   const [permFile, setPermFile] = useState<PermLevel>("ask");
   const [permCmd, setPermCmd] = useState<PermLevel>("ask");
   const [theme, setTheme] = useState<"silver" | "minimal" | "dark">("silver");
 
-  // Auto-advance welcome
+  // Typewriter effect for welcome
+  const [typedChars, setTypedChars] = useState(0);
+  const welcomeText = "مساعدك الذكي للبرمجة";
+
   useEffect(() => {
     if (step === "welcome") {
-      const timer = setTimeout(() => {
-        setStep("language");
-        setCursor(2); // auto-detect recommended
-      }, 2500);
-      return () => clearTimeout(timer);
+      const interval = setInterval(() => {
+        setTypedChars(prev => {
+          if (prev >= welcomeText.length) {
+            clearInterval(interval);
+            // Auto-advance after typing completes
+            setTimeout(() => { setStep("language"); setCursor(0); }, 1200);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 80);
+      return () => clearInterval(interval);
     }
   }, [step]);
 
-  const currentStepNum = (): number => {
-    const map: Record<Step, number> = {
-      welcome: 0,
-      language: 1,
-      model: 2,
-      apikey: 3,
-      permissions: 4,
-      theme: 5,
-      done: 6,
-    };
-    return map[step];
-  };
+  const stepIndex = STEPS.indexOf(step);
+  const totalSteps = STEPS.length - 1; // exclude "ready"
 
-  const totalSteps = 6;
+  const advance = useCallback((overrideModel?: string) => {
+    const idx = STEPS.indexOf(step);
+    let next = STEPS[idx + 1];
 
-  const advanceStep = useCallback(() => {
-    const idx = STEPS_ORDER.indexOf(step);
-    let next = STEPS_ORDER[idx + 1];
-
-    // Skip apikey step if model doesn't need a key
+    // Skip apikey if model doesn't need one
     if (next === "apikey") {
-      const selectedModel = MODELS.find((m) => m.id === model);
-      if (!selectedModel?.needsKey) {
-        next = "permissions";
-      }
+      const checkModel = overrideModel || model;
+      const m = MODELS.find(m => m.id === checkModel);
+      if (!m?.needsKey) next = "permissions";
     }
 
     setCursor(0);
-    setPermSection("file");
+    setPermPhase("file");
+    setAuthMethod("choose");
+    setApiKeyStatus("input");
+    setOauthStatus("waiting");
+    setApiKey("");
     setStep(next);
   }, [step, model]);
 
-  const saveAndFinish = useCallback(() => {
-    const filePermMap: Record<PermLevel, "ask" | "always" | "never"> = {
-      ask: "ask",
-      session: "ask",
-      always: "always",
-    };
-    const cmdPermMap: Record<PermLevel, "ask" | "always" | "never"> = {
-      ask: "ask",
-      session: "ask",
-      always: "always",
-    };
-
+  const save = useCallback(() => {
     setConfig("hasCompletedOnboarding", true);
     setConfig("language", language);
     setConfig("defaultModel", model);
     setConfig("theme", theme);
     setConfig("permissions", {
-      allowFileWrite: filePermMap[permFile],
-      allowCommandRun: cmdPermMap[permCmd],
+      allowFileWrite: permFile === "always" ? "always" : "ask",
+      allowCommandRun: permCmd === "always" ? "always" : "ask",
     });
 
-    if (apiKey && apiKey.length > 0) {
-      const selectedModel = MODELS.find((m) => m.id === model);
-      if (selectedModel?.keyType) {
-        const keyField = selectedModel.keyType;
-        setNestedConfig(`apiKeys.${keyField}`, apiKey);
-      }
+    if (apiKey.length > 0) {
+      const m = MODELS.find(m => m.id === model);
+      if (m?.keyType) setNestedConfig(`apiKeys.${m.keyType}`, apiKey);
     }
 
     onComplete();
   }, [language, model, apiKey, permFile, permCmd, theme, onComplete]);
 
-  const validateApiKey = useCallback(
-    async (key: string) => {
-      setApiKeyStatus("validating");
-      const selectedModel = MODELS.find((m) => m.id === model);
-
-      try {
-        if (selectedModel?.keyType === "anthropic") {
-          await axios.post(
-            "https://api.anthropic.com/v1/messages",
-            {
-              model: "claude-sonnet-4-20250514",
-              max_tokens: 1,
-              messages: [{ role: "user", content: "hi" }],
-            },
-            {
-              headers: {
-                "x-api-key": key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-              },
-              timeout: 10000,
-            }
-          );
-        } else if (selectedModel?.keyType === "openai") {
-          await axios.get("https://api.openai.com/v1/models", {
-            headers: { Authorization: `Bearer ${key}` },
-            timeout: 10000,
-          });
-        } else if (selectedModel?.keyType === "groq") {
-          await axios.get("https://api.groq.com/openai/v1/models", {
-            headers: { Authorization: `Bearer ${key}` },
-            timeout: 10000,
-          });
-        } else if (selectedModel?.keyType === "kimi") {
-          await axios.get("https://api.moonshot.cn/v1/models", {
-            headers: { Authorization: `Bearer ${key}` },
-            timeout: 10000,
-          });
-        }
-        setApiKeyStatus("valid");
-        setTimeout(() => advanceStep(), 1000);
-      } catch {
-        setApiKeyStatus("invalid");
+  const validateKey = useCallback(async (key: string) => {
+    setApiKeyStatus("validating");
+    const m = MODELS.find(m => m.id === model);
+    try {
+      if (m?.keyType === "anthropic") {
+        await axios.post("https://api.anthropic.com/v1/messages",
+          { model: "claude-sonnet-4-20250514", max_tokens: 1, messages: [{ role: "user", content: "hi" }] },
+          { headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 10000 }
+        );
+      } else if (m?.keyType === "openai") {
+        await axios.get("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` }, timeout: 10000 });
+      } else if (m?.keyType === "groq") {
+        await axios.get("https://api.groq.com/openai/v1/models", { headers: { Authorization: `Bearer ${key}` }, timeout: 10000 });
+      } else if (m?.keyType === "kimi") {
+        await axios.get("https://api.moonshot.cn/v1/models", { headers: { Authorization: `Bearer ${key}` }, timeout: 10000 });
       }
-    },
-    [model, advanceStep]
-  );
+      setApiKeyStatus("valid");
+      // Save key IMMEDIATELY to config
+      if (m?.keyType) {
+        setNestedConfig(`apiKeys.${m.keyType}`, key);
+      }
+      setTimeout(() => advance(), 800);
+    } catch {
+      setApiKeyStatus("invalid");
+    }
+  }, [model, advance]);
 
-  // Handle key input for API key step
-  useInput(
-    (input, key) => {
-      if (step === "apikey" && apiKeyStatus === "input") {
+  // ──── Input Handler ────
+  useInput((input, key) => {
+    if (input === "c" && key.ctrl) { exit(); return; }
+
+    // API key step — multi-phase handling
+    if (step === "apikey") {
+      const m = MODELS.find(m => m.id === model);
+      const isAnthropic = m?.keyType === "anthropic";
+
+      // Phase 1: Choose auth method (Anthropic only)
+      if (isAnthropic && authMethod === "choose") {
         if (key.escape) {
-          // Escape -> fall back to deepseek
-          setModel("deepseek-v3");
-          setApiKey("");
-          // Skip to permissions
-          setCursor(0);
-          setPermSection("file");
-          setStep("permissions");
+          setModel("deepseek-v3"); setApiKey("");
+          setCursor(0); setPermPhase("file"); setStep("permissions");
           return;
         }
-        if (key.return && apiKey.length > 0) {
-          validateApiKey(apiKey);
-          return;
-        }
-        if (key.backspace || key.delete) {
-          setApiKey((prev) => prev.slice(0, -1));
-          return;
-        }
-        if (
-          input &&
-          !key.ctrl &&
-          !key.meta &&
-          !key.upArrow &&
-          !key.downArrow
-        ) {
-          setApiKey((prev) => prev + input);
-        }
-        return;
-      }
-
-      if (step === "welcome") return;
-      if (step === "apikey") return; // handled above
-      if (step === "done") {
+        if (key.upArrow) { setCursor(prev => Math.max(0, prev - 1)); return; }
+        if (key.downArrow) { setCursor(prev => Math.min(1, prev + 1)); return; }
         if (key.return) {
-          saveAndFinish();
+          if (cursor === 0) {
+            // Sign in with Anthropic account — launch local auth server
+            setAuthMethod("oauth");
+            setOauthStatus("polling");
+
+            // Start auth server — opens browser, auto-receives key
+            const validateAnthropicKey = async (k: string): Promise<boolean> => {
+              try {
+                await axios.post("https://api.anthropic.com/v1/messages",
+                  { model: "claude-sonnet-4-6", max_tokens: 1, messages: [{ role: "user", content: "hi" }] },
+                  { headers: { "x-api-key": k, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 10000 }
+                );
+                return true;
+              } catch { return false; }
+            };
+
+            startAuthServer("Anthropic", "https://console.anthropic.com/settings/keys", validateAnthropicKey)
+              .then((result) => {
+                if (result.success && result.key) {
+                  setApiKey(result.key);
+                  // Save key IMMEDIATELY to config — don't rely on React state for save()
+                  setNestedConfig("apiKeys.anthropic", result.key);
+                  setOauthStatus("success");
+                  setApiKeyStatus("valid");
+                  setTimeout(() => advance(), 800);
+                } else {
+                  setOauthStatus("failed");
+                  // Fall back to manual input
+                  setAuthMethod("apikey");
+                }
+              });
+          } else {
+            // Paste API key directly
+            setAuthMethod("apikey");
+            setCursor(0);
+          }
+          return;
         }
         return;
       }
 
-      // Arrow navigation
-      if (key.upArrow) {
-        setCursor((prev) => Math.max(0, prev - 1));
-        return;
-      }
-      if (key.downArrow) {
-        const maxItems = getMaxCursor();
-        setCursor((prev) => Math.min(maxItems - 1, prev + 1));
-        return;
-      }
-
-      // Enter to select
-      if (key.return) {
-        handleSelect();
+      // Phase 2a: OAuth flow — waiting for user to paste key from browser
+      if (authMethod === "oauth") {
+        if (key.escape) { setAuthMethod("choose"); setCursor(0); return; }
+        if (key.backspace || key.delete) { setApiKey(prev => prev.slice(0, -1)); return; }
+        if (key.return && apiKey.length > 0) { validateKey(apiKey); return; }
+        if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow) {
+          setApiKey(prev => prev + input);
+        }
         return;
       }
 
-      // Ctrl+C to exit
-      if (input === "c" && key.ctrl) {
-        exit();
+      // Phase 2b: Direct API key input
+      if (authMethod === "apikey" && apiKeyStatus === "input") {
+        if (key.escape) {
+          if (isAnthropic) { setAuthMethod("choose"); setCursor(0); return; }
+          setModel("deepseek-v3"); setApiKey("");
+          setCursor(0); setPermPhase("file"); setStep("permissions");
+          return;
+        }
+        if (key.return && apiKey.length > 0) { validateKey(apiKey); return; }
+        if (key.backspace || key.delete) { setApiKey(prev => prev.slice(0, -1)); return; }
+        if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow) {
+          setApiKey(prev => prev + input);
+        }
+        return;
       }
-    },
-    { isActive: true }
-  );
 
-  const getMaxCursor = (): number => {
+      // Non-Anthropic models go straight to apikey input
+      if (!isAnthropic && apiKeyStatus === "input") {
+        if (key.escape) {
+          setModel("deepseek-v3"); setApiKey("");
+          setCursor(0); setPermPhase("file"); setStep("permissions");
+          return;
+        }
+        if (key.return && apiKey.length > 0) { validateKey(apiKey); return; }
+        if (key.backspace || key.delete) { setApiKey(prev => prev.slice(0, -1)); return; }
+        if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow) {
+          setApiKey(prev => prev + input);
+        }
+        return;
+      }
+
+      return;
+    }
+
+    if (step === "welcome") return;
+
+    if (step === "ready") {
+      if (key.return) save();
+      return;
+    }
+
+    // Navigation
+    if (key.upArrow) { setCursor(prev => Math.max(0, prev - 1)); return; }
+    if (key.downArrow) {
+      const max = getMaxItems();
+      setCursor(prev => Math.min(max - 1, prev + 1));
+      return;
+    }
+
+    if (key.return) { select(); return; }
+  }, { isActive: true });
+
+  const getMaxItems = (): number => {
     switch (step) {
-      case "language":
-        return LANGUAGES.length;
-      case "model":
-        return MODELS.length;
-      case "permissions":
-        return permSection === "file"
-          ? PERM_FILE_OPTIONS.length
-          : PERM_CMD_OPTIONS.length;
-      case "theme":
-        return THEMES.length;
-      default:
-        return 0;
+      case "language": return LANGUAGES.length;
+      case "model": return MODELS.length;
+      case "permissions": return 3; // ask, session, always
+      case "theme": return THEMES.length;
+      default: return 0;
     }
   };
 
-  const handleSelect = () => {
+  const select = () => {
     switch (step) {
       case "language":
         setLanguage(LANGUAGES[cursor].id);
-        advanceStep();
+        advance();
         break;
-      case "model":
-        setModel(MODELS[cursor].id);
-        advanceStep();
+      case "model": {
+        const selectedId = MODELS[cursor].id;
+        setModel(selectedId);
+        advance(selectedId);
         break;
+      }
       case "permissions":
-        if (permSection === "file") {
-          setPermFile(PERM_FILE_OPTIONS[cursor].id);
-          setPermSection("cmd");
+        const levels: PermLevel[] = ["ask", "session", "always"];
+        if (permPhase === "file") {
+          setPermFile(levels[cursor]);
+          setPermPhase("cmd");
           setCursor(0);
         } else {
-          setPermCmd(PERM_CMD_OPTIONS[cursor].id);
-          advanceStep();
+          setPermCmd(levels[cursor]);
+          advance();
         }
         break;
       case "theme":
         setTheme(THEMES[cursor].id);
-        advanceStep();
+        advance();
         break;
     }
   };
 
-  const renderStepBar = (): string => {
-    const num = currentStepNum();
-    if (num === 0) return "";
-    if (step === "done") {
-      return c.step("\u2501".repeat(30) + " All set! \u2705");
-    }
-    return c.step("\u2501".repeat(30) + ` Step ${num} of ${totalSteps}`);
+  // ──── Progress Bar ────
+  const renderProgress = () => {
+    if (step === "welcome") return null;
+    const current = Math.min(stepIndex, totalSteps);
+    const filled = "━".repeat(current * 5);
+    const empty = "╌".repeat((totalSteps - current) * 5);
+    const label = step === "ready" ? "Complete" : `${current}/${totalSteps}`;
+    return (
+      <Box marginBottom={1}>
+        <Text>
+          {p.accent(filled)}{p.dim(empty)} {p.dim(label)}
+        </Text>
+      </Box>
+    );
   };
 
-  const renderChoices = (
-    items: { label: string }[],
-    activeCursor: number
-  ): string => {
-    return items
-      .map((item, i) => {
-        const prefix = i === activeCursor ? "  \u276f " : "    ";
-        const text =
-          i === activeCursor
-            ? c.selected(item.label)
-            : c.unselected(item.label);
-        return prefix + text;
-      })
-      .join("\n");
-  };
-
-  // Render each step
-  const renderContent = (): string => {
+  // ──── Render Steps ────
+  const renderStep = () => {
     switch (step) {
+
       case "welcome": {
-        const inner = [
-          "",
-          c.selected("    \u2726  \u0623\u0647\u0644\u0627\u064b \u0628\u0643 \u0641\u064a TaseesCode  \u2726"),
-          c.headEn("    Welcome to TaseesCode"),
-          "",
-          c.headAr("    \u0645\u0633\u0627\u0639\u062f\u0643 \u0627\u0644\u0630\u0643\u064a \u0644\u0644\u0628\u0631\u0645\u062c\u0629 \ud83c\uddf8\ud83c\udde6"),
-          c.headEn("    Your Arabic-first AI coding partner"),
-          "",
-        ].join("\n");
-
-        const box = boxen(inner, {
-          borderStyle: "double" as any,
-          borderColor: c.border,
-          padding: 0,
-          textAlignment: "center" as any,
-        });
-
-        return box + "\n\n" + c.unselected("  Setting up your experience...");
+        const typed = welcomeText.slice(0, typedChars);
+        const cursorChar = typedChars < welcomeText.length ? "▊" : "";
+        return (
+          <Box flexDirection="column" alignItems="center" paddingY={2}>
+            <Text>{p.dim("╭────────────────────────────────────────╮")}</Text>
+            <Text>{p.dim("│")}{" ".repeat(40)}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{"   "}{p.white.bold("◆  TaseesCode  ◆")}{"                   "}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{"   "}{p.silver("تأسيس كود")}{"                            "}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{" ".repeat(40)}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{"   "}{p.gray(typed)}{p.accent(cursorChar)}{" ".repeat(Math.max(0, 37 - typed.length - cursorChar.length))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{" ".repeat(40)}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{"   "}{p.dim("Built in Jeddah 🇸🇦 by TaseesAI")}{"     "}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{" ".repeat(40)}{p.dim("│")}</Text>
+            <Text>{p.dim("╰────────────────────────────────────────╯")}</Text>
+          </Box>
+        );
       }
 
       case "language": {
-        const heading = [
-          c.headAr("\u0645\u0627 \u0644\u063a\u062a\u0643 \u0627\u0644\u0645\u0641\u0636\u0651\u0644\u0629\u061f"),
-          c.headEn("What is your preferred language?"),
-          "",
-        ].join("\n");
-        return heading + "\n" + renderChoices(LANGUAGES, cursor);
+        return (
+          <Box flexDirection="column">
+            <Text>{p.white.bold("Language")}</Text>
+            <Text>{p.silver("ما لغتك المفضّلة؟")}</Text>
+            <Text>{" "}</Text>
+            {LANGUAGES.map((lang, i) => (
+              <Text key={lang.id}>
+                {i === cursor ? p.white("  ❯ ") : "    "}
+                {i === cursor ? p.white.bold(`${lang.icon} ${lang.label}`) : p.gray(`${lang.icon} ${lang.label}`)}
+                {"  "}
+                {p.dim(lang.desc)}
+              </Text>
+            ))}
+            <Text>{" "}</Text>
+            <Text>{p.dim("  ↑↓ navigate · Enter select")}</Text>
+          </Box>
+        );
       }
 
       case "model": {
-        const heading = [
-          c.headAr(
-            "\u0627\u062e\u062a\u0631 \u0646\u0645\u0648\u0630\u062c \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a"
-          ),
-          c.headEn("Choose your default AI model"),
-          "",
-        ].join("\n");
-
-        const items = MODELS.map((m) => ({
-          label: `${m.label}      ${c.step("\u2014")} ${c.unselected(m.desc)}`,
-        }));
-
         return (
-          heading +
-          "\n" +
-          renderChoices(items, cursor) +
-          "\n\n" +
-          c.step("  Use \u2191\u2193 to navigate, Enter to select")
+          <Box flexDirection="column">
+            <Text>{p.white.bold("AI Model")}</Text>
+            <Text>{p.silver("اختر نموذج الذكاء الاصطناعي")}</Text>
+            <Text>{" "}</Text>
+            {MODELS.map((m, i) => {
+              const isActive = i === cursor;
+              const tagColor = m.tag === "RECOMMENDED" ? p.gold
+                : m.tag === "FREE" ? p.green
+                : m.tag === "MOST CAPABLE" ? p.white
+                : m.tag === "BEST VALUE" ? p.accent
+                : m.tag === "PREMIUM" ? p.silver
+                : p.dim;
+              return (
+                <Text key={m.id}>
+                  {isActive ? p.white("  ❯ ") : "    "}
+                  {isActive ? p.white.bold(m.name) : p.gray(m.name)}
+                  {"  "}
+                  {tagColor(`[${m.tag}]`)}
+                  {"  "}
+                  {p.dim(m.desc)}
+                </Text>
+              );
+            })}
+            <Text>{" "}</Text>
+            <Text>{p.dim("  ↑↓ navigate · Enter select · You can change anytime with /model")}</Text>
+          </Box>
         );
       }
 
       case "apikey": {
-        const selectedModel = MODELS.find((m) => m.id === model);
-        const providerNames: Record<string, string> = {
-          anthropic: "Anthropic",
-          openai: "OpenAI",
-          groq: "Groq",
-          kimi: "Kimi",
-        };
-        const providerUrls: Record<string, string> = {
-          anthropic: "console.anthropic.com",
-          openai: "platform.openai.com",
-          groq: "console.groq.com",
-          kimi: "platform.moonshot.cn",
-        };
-        const provider = providerNames[selectedModel?.keyType || ""] || "API";
-        const url = providerUrls[selectedModel?.keyType || ""] || "";
-        const isGroq = selectedModel?.keyType === "groq";
+        const m = MODELS.find(m => m.id === model);
+        const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", groq: "Groq", kimi: "Kimi" };
+        const providerUrls: Record<string, string> = { anthropic: "console.anthropic.com/settings/keys", openai: "platform.openai.com/api-keys", groq: "console.groq.com/keys", kimi: "platform.moonshot.cn" };
+        const provider = providerNames[m?.keyType || ""] || "API";
+        const url = providerUrls[m?.keyType || ""] || "";
+        const isFree = m?.free;
+        const isAnthropic = m?.keyType === "anthropic";
 
-        const heading = [
-          c.headAr(
-            `\u0623\u062f\u062e\u0644 \u0645\u0641\u062a\u0627\u062d ${provider} API \u0627\u0644\u062e\u0627\u0635 \u0628\u0643`
-          ),
-          c.headEn(isGroq
-            ? `Groq is FREE \u2014 get your key at console.groq.com (takes 30 seconds)`
-            : `Enter your ${provider} API key`),
-          "",
-          c.unselected(`  Get one at: ${url}`),
-          "",
-        ].join("\n");
+        // Show first 12 chars + last 4 chars, mask the middle
+        const masked = apiKey.length > 20
+          ? apiKey.slice(0, 12) + "•".repeat(Math.min(apiKey.length - 16, 20)) + apiKey.slice(-4)
+          : apiKey;
 
-        const masked =
-          apiKey.length > 8
-            ? apiKey.slice(0, 8) + "\u2588".repeat(apiKey.length - 8)
-            : apiKey.length > 0
-            ? apiKey
-            : "";
-
-        let statusLine = "";
-        if (apiKeyStatus === "validating") {
-          statusLine = "\n" + c.step("  Validating...");
-        } else if (apiKeyStatus === "valid") {
-          statusLine = "\n" + chalk.hex("#4A9")("  \u2705 API key is valid!");
-        } else if (apiKeyStatus === "invalid") {
-          statusLine =
-            "\n" +
-            chalk.hex("#E44")("  \u274c Invalid key. Press Escape to skip.");
+        // Anthropic: show auth method chooser first
+        if (isAnthropic && authMethod === "choose") {
+          return (
+            <Box flexDirection="column">
+              <Text>{p.white.bold("Authenticate with Anthropic")}</Text>
+              <Text>{p.silver("تسجيل الدخول إلى Anthropic")}</Text>
+              <Text>{" "}</Text>
+              <Text>
+                {cursor === 0 ? p.white("  ❯ ") : "    "}
+                {cursor === 0 ? p.white.bold("🌐 Sign in with your Anthropic account") : p.gray("🌐 Sign in with your Anthropic account")}
+              </Text>
+              <Text>
+                {cursor === 0 ? p.dim("      Opens console.anthropic.com in your browser") : p.dim("      Opens console.anthropic.com in your browser")}
+              </Text>
+              <Text>{" "}</Text>
+              <Text>
+                {cursor === 1 ? p.white("  ❯ ") : "    "}
+                {cursor === 1 ? p.white.bold("🔑 Paste an API key") : p.gray("🔑 Paste an API key")}
+              </Text>
+              <Text>
+                {cursor === 1 ? p.dim("      If you already have a key") : p.dim("      If you already have a key")}
+              </Text>
+              <Text>{" "}</Text>
+              <Text>{p.dim("  ↑↓ navigate · Enter select · Escape skip")}</Text>
+            </Box>
+          );
         }
 
-        const footer = [
-          "",
-          c.unselected("  (Press Enter to confirm, Escape to skip)"),
-          c.unselected(
-            "  (\u0627\u0636\u063a\u0637 Enter \u0644\u0644\u062a\u0623\u0643\u064a\u062f\u060c Escape \u0644\u0644\u062a\u062e\u0637\u064a)"
-          ),
-        ].join("\n");
+        // Anthropic OAuth flow: auth server running, browser opened
+        if (isAnthropic && authMethod === "oauth") {
+          return (
+            <Box flexDirection="column">
+              <Text>{p.white.bold("Sign in with Anthropic")}</Text>
+              <Text>{p.silver("تسجيل الدخول إلى حساب Anthropic")}</Text>
+              <Text>{" "}</Text>
+              {oauthStatus === "polling" && (
+                <>
+                  <Text>{p.accent("  ◆ Browser opened — complete authentication there")}</Text>
+                  <Text>{" "}</Text>
+                  <Text>{p.gray("  ⟳ Waiting for authentication...")}</Text>
+                  <Text>{p.dim("    Sign in → Create API key → Paste in browser")}</Text>
+                  <Text>{p.dim("    TaseesCode will detect it automatically")}</Text>
+                </>
+              )}
+              {oauthStatus === "success" && (
+                <>
+                  <Text>{p.green("  ✓ Authenticated with Anthropic!")}</Text>
+                  <Text>{p.dim("    Continuing...")}</Text>
+                </>
+              )}
+              {oauthStatus === "failed" && (
+                <>
+                  <Text>{p.red("  ✗ Authentication timed out or failed")}</Text>
+                  <Text>{p.dim("    Falling back to manual key input...")}</Text>
+                </>
+              )}
+              <Text>{" "}</Text>
+              <Text>{p.dim("  Escape to cancel")}</Text>
+            </Box>
+          );
+        }
 
+        // Standard API key input (non-Anthropic or Anthropic with "paste key" chosen)
         return (
-          heading +
-          "  > " +
-          c.selected(masked || "") +
-          c.step("\u2588") +
-          statusLine +
-          "\n" +
-          footer
+          <Box flexDirection="column">
+            <Text>{p.white.bold(`${provider} API Key`)}</Text>
+            {isFree && <Text>{p.green("✦ Free — takes 30 seconds to get")}</Text>}
+            <Text>{p.silver(`أدخل مفتاح ${provider} الخاص بك`)}</Text>
+            <Text>{" "}</Text>
+            <Text>{p.dim(`  Get your key at: ${url}`)}</Text>
+            <Text>{" "}</Text>
+            <Text>{"  "}{p.accent("❯ ")}{p.white(masked)}{p.accent("▊")}</Text>
+            <Text>{" "}</Text>
+            {apiKeyStatus === "validating" && <Text>{p.gray("  ⟳ Validating...")}</Text>}
+            {apiKeyStatus === "valid" && <Text>{p.green("  ✓ Valid! Continuing...")}</Text>}
+            {apiKeyStatus === "invalid" && <Text>{p.red("  ✗ Invalid key. Try again or press Escape to skip.")}</Text>}
+            <Text>{" "}</Text>
+            <Text>{p.dim(`  Enter confirm · Escape ${isAnthropic ? "back" : "skip (falls back to DeepSeek)"}`)}</Text>
+          </Box>
         );
       }
 
       case "permissions": {
-        if (permSection === "file") {
-          const heading = [
-            c.headAr(
-              "\u0645\u062a\u0649 \u0623\u0633\u062a\u0623\u0630\u0646\u0643 \u0642\u0628\u0644 \u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0645\u0644\u0641\u0627\u062a\u061f"
-            ),
-            c.headEn("When should I ask before editing files?"),
-            "",
-          ].join("\n");
-          return heading + "\n" + renderChoices(PERM_FILE_OPTIONS, cursor);
-        } else {
-          const heading = [
-            c.headAr(
-              "\u0645\u062a\u0649 \u0623\u0633\u062a\u0623\u0630\u0646\u0643 \u0642\u0628\u0644 \u062a\u0646\u0641\u064a\u0630 \u0627\u0644\u0623\u0648\u0627\u0645\u0631\u061f"
-            ),
-            c.headEn("When should I ask before running commands?"),
-            "",
-          ].join("\n");
-          return heading + "\n" + renderChoices(PERM_CMD_OPTIONS, cursor);
-        }
+        const labels = [
+          { label: "Ask every time", labelAr: "استأذن كل مرة", desc: "Safest", icon: "🔒" },
+          { label: "Ask once per session", labelAr: "استأذن مرة واحدة", desc: "Balanced", icon: "⚡" },
+          { label: "Auto-approve", labelAr: "موافقة تلقائية", desc: permPhase === "cmd" ? "⚠️ Dangerous" : "Fastest", icon: "🚀" },
+        ];
+
+        const title = permPhase === "file" ? "File Permissions" : "Command Permissions";
+        const titleAr = permPhase === "file" ? "صلاحيات الملفات" : "صلاحيات الأوامر";
+        const subtitle = permPhase === "file"
+          ? "When should I ask before creating or editing files?"
+          : "When should I ask before running terminal commands?";
+
+        return (
+          <Box flexDirection="column">
+            <Text>{p.white.bold(title)}</Text>
+            <Text>{p.silver(titleAr)}</Text>
+            <Text>{p.dim(`  ${subtitle}`)}</Text>
+            <Text>{" "}</Text>
+            {labels.map((opt, i) => (
+              <Text key={i}>
+                {i === cursor ? p.white("  ❯ ") : "    "}
+                {i === cursor ? p.white.bold(`${opt.icon} ${opt.label}`) : p.gray(`${opt.icon} ${opt.label}`)}
+                {"  "}
+                {p.dim(opt.desc)}
+              </Text>
+            ))}
+            <Text>{" "}</Text>
+            <Text>{p.dim(`  ${permPhase === "file" ? "1/2" : "2/2"} · ↑↓ navigate · Enter select`)}</Text>
+          </Box>
+        );
       }
 
       case "theme": {
-        const heading = [
-          c.headAr(
-            "\u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0638\u0647\u0631 / Choose theme"
-          ),
-          "",
-        ].join("\n");
-        return heading + "\n" + renderChoices(THEMES, cursor);
+        return (
+          <Box flexDirection="column">
+            <Text>{p.white.bold("Theme")}</Text>
+            <Text>{p.silver("اختر المظهر")}</Text>
+            <Text>{" "}</Text>
+            {THEMES.map((t, i) => (
+              <Text key={t.id}>
+                {i === cursor ? p.white("  ❯ ") : "    "}
+                {i === cursor ? p.white.bold(t.label) : p.gray(t.label)}
+                {"  "}
+                {p.accent(t.blocks)}
+                {"  "}
+                {p.dim(t.desc)}
+              </Text>
+            ))}
+            <Text>{" "}</Text>
+            <Text>{p.dim("  ↑↓ navigate · Enter select")}</Text>
+          </Box>
+        );
       }
 
-      case "done": {
-        const selectedModel = MODELS.find((m) => m.id === model);
-        const modelLabel = selectedModel
-          ? `${selectedModel.label.trim()}${selectedModel.needsKey ? "" : " (Free)"}`
-          : model;
+      case "ready": {
+        const m = MODELS.find(m => m.id === model);
+        const langLabel = language === "ar" ? "Arabic first" : language === "en" ? "English first" : "Auto-detect";
+        const permFileLabel = permFile === "ask" ? "Ask every time" : permFile === "session" ? "Once/session" : "Auto-approve";
+        const permCmdLabel = permCmd === "ask" ? "Ask every time" : permCmd === "session" ? "Once/session" : "Auto-approve";
 
-        const langLabel =
-          language === "ar"
-            ? "\u0627\u0644\u0639\u0631\u0628\u064a\u0629 \u0623\u0648\u0644\u0627\u064b"
-            : language === "en"
-            ? "English first"
-            : "Auto-detect";
-
-        const themeLabel =
-          theme === "silver"
-            ? "Silver"
-            : theme === "minimal"
-            ? "Minimal"
-            : "Dark";
-
-        const permFileLabel =
-          permFile === "ask"
-            ? "Always ask"
-            : permFile === "session"
-            ? "Ask once per session"
-            : "Auto-approve";
-
-        const permCmdLabel =
-          permCmd === "ask"
-            ? "Always ask"
-            : permCmd === "session"
-            ? "Ask once per session"
-            : "Auto-approve";
-
-        const inner = [
-          "",
-          c.selected(
-            "   \u0643\u0644 \u0634\u064a\u0621 \u062c\u0627\u0647\u0632! You are ready to code!"
-          ),
-          "",
-          `   ${c.headEn("Model:")}       ${c.success(modelLabel)}`,
-          `   ${c.headEn("Language:")}    ${c.success(langLabel)}`,
-          `   ${c.headEn("Files:")}       ${c.success(permFileLabel)}`,
-          `   ${c.headEn("Commands:")}    ${c.success(permCmdLabel)}`,
-          `   ${c.headEn("Theme:")}       ${c.success(themeLabel)}`,
-          `   ${c.headEn("Plan:")}        ${c.success("Free (100 msg / 5h)")}`,
-          "",
-        ].join("\n");
-
-        const box = boxen(inner, {
-          borderStyle: "double" as any,
-          borderColor: c.border,
-          padding: 0,
-          textAlignment: "left" as any,
-        });
+        const W = 44; // inner width
+        const pad = (text: string) => text + " ".repeat(Math.max(0, W - text.length));
+        const row = (label: string, value: string) => {
+          const content = `   ${label.padEnd(12)}${value}`;
+          return content + " ".repeat(Math.max(0, W - content.length));
+        };
+        const border = "─".repeat(W);
 
         return (
-          box +
-          "\n\n" +
-          c.headEn("  Press Enter to start coding...") +
-          "\n" +
-          c.headAr(
-            "  \u0627\u0636\u063a\u0637 Enter \u0644\u0644\u0628\u062f\u0621 \u0641\u064a \u0627\u0644\u0628\u0631\u0645\u062c\u0629..."
-          )
+          <Box flexDirection="column">
+            <Text>{p.dim(`╭${border}╮`)}</Text>
+            <Text>{p.dim("│")}{pad("")}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{pad("   ✓ Ready to code!")}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{pad("")}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.gray(row("Model", m?.name || model))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.gray(row("Language", langLabel))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.gray(row("Theme", theme))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.gray(row("Files", permFileLabel))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.gray(row("Commands", permCmdLabel))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{pad("")}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{p.dim(pad("   Change anytime with /config"))}{p.dim("│")}</Text>
+            <Text>{p.dim("│")}{pad("")}{p.dim("│")}</Text>
+            <Text>{p.dim(`╰${border}╯`)}</Text>
+            <Text>{" "}</Text>
+            <Text>{p.accent("  Press Enter to start →")}</Text>
+          </Box>
         );
       }
 
       default:
-        return "";
+        return null;
     }
   };
 
   return (
-    <Box flexDirection="column" paddingX={1} paddingY={1}>
-      {renderStepBar() ? <Text>{renderStepBar()}</Text> : null}
-      {renderStepBar() ? <Text>{" "}</Text> : null}
-      <Text>{renderContent()}</Text>
+    <Box flexDirection="column" paddingX={2} paddingY={1}>
+      {renderProgress()}
+      {renderStep()}
     </Box>
   );
 };
