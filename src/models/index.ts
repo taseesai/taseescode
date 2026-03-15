@@ -6,6 +6,7 @@ export interface ModelConfig {
   inputCostSARPerMToken: number;
   outputCostSARPerMToken: number;
   contextWindow: number;
+  bestFor?: string;
 }
 
 export const MODEL_REGISTRY: Record<string, ModelConfig> = {
@@ -17,6 +18,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.054,
     outputCostSARPerMToken: 0.216,
     contextWindow: 128000,
+    bestFor: "General coding · Arabic · Best value",
   },
   "claude-sonnet": {
     name: "Claude Sonnet",
@@ -25,6 +27,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 5.62,
     outputCostSARPerMToken: 16.87,
     contextWindow: 200000,
+    bestFor: "Complex reasoning · Large codebases · Best quality",
   },
   "gpt-4o": {
     name: "GPT-4o",
@@ -34,6 +37,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 9.37,
     outputCostSARPerMToken: 28.12,
     contextWindow: 128000,
+    bestFor: "Multimodal · Vision · Broad knowledge",
   },
   "qwen-2.5-coder": {
     name: "Qwen 2.5 Coder",
@@ -43,6 +47,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0,
     outputCostSARPerMToken: 0,
     contextWindow: 131072,
+    bestFor: "Pure code generation · Completions · Refactoring",
   },
   "kimi-k1.5": {
     name: "Kimi K1.5",
@@ -52,6 +57,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.21,
     outputCostSARPerMToken: 0.63,
     contextWindow: 128000,
+    bestFor: "Long documents · Deep analysis · 128K context",
   },
   "llama-3.3-70b": {
     name: "Llama 3.3 70B",
@@ -61,6 +67,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 128000,
+    bestFor: "Free · Arabic · Fast · Best free model overall",
   },
   "llama-3.1-8b": {
     name: "Llama 3.1 8B",
@@ -70,6 +77,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 128000,
+    bestFor: "Free · Instant responses · Quick questions",
   },
   "mixtral-8x7b": {
     name: "Mixtral 8x7B",
@@ -79,6 +87,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 32768,
+    bestFor: "Free · Multilingual · Mixed Arabic/English tasks",
   },
   "gemma2-9b": {
     name: "Gemma 2 9B",
@@ -88,6 +97,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     inputCostSARPerMToken: 0.0,
     outputCostSARPerMToken: 0.0,
     contextWindow: 8192,
+    bestFor: "Free · Lightweight · Simple tasks · Fastest",
   },
 };
 

@@ -128,9 +128,19 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ currentModel, onSelect
             );
           }
           if (status === "free") {
-            return <Text>{chalk.hex("#7ACC7A")(`  ✦ ${m.name} — free to use, no key needed`)}</Text>;
+            return (
+              <Box flexDirection="column">
+                <Text>{chalk.hex("#7ACC7A")(`  ✦ ${m.name} — free, no key needed`)}</Text>
+                {m.bestFor ? <Text>{chalk.hex("#4A4A4A")(`  ✦ Best for: ${m.bestFor}`)}</Text> : null}
+              </Box>
+            );
           }
-          return <Text>{chalk.hex("#7ACC7A")(`  ✅ ${m.name} — API key verified, ready to use`)}</Text>;
+          return (
+            <Box flexDirection="column">
+              <Text>{chalk.hex("#7ACC7A")(`  ✅ ${m.name} — ready to use`)}</Text>
+              {m.bestFor ? <Text>{chalk.hex("#4A4A4A")(`  ✦ Best for: ${m.bestFor}`)}</Text> : null}
+            </Box>
+          );
         })()}
       </Box>
     </Box>

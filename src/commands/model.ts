@@ -72,6 +72,7 @@ export function modelCommand(args: string[], currentModel: string): string {
       `  Cost in:   ${c.silver(m?.inputCostSARPerMToken === 0 ? "Free" : m?.inputCostSARPerMToken + " SAR/M")}`,
       `  Cost out:  ${c.silver(m?.outputCostSARPerMToken === 0 ? "Free" : m?.outputCostSARPerMToken + " SAR/M")}`,
       `  Status:    ${keyStatusBadge(status)}`,
+      m?.bestFor ? `  Best for:  ${c.silver(m.bestFor)}` : "",
       "",
       c.dim("  Use /model list to see all models"),
       c.dim("  Use /model [id] to switch"),
@@ -100,10 +101,12 @@ export function modelCommand(args: string[], currentModel: string): string {
       const badge   = keyStatusBadge(status);
       const label   = costLabel(m.inputCostSARPerMToken, m.outputCostSARPerMToken);
 
+      const bestFor = m.bestFor ? `      ${c.dim("✦ " + m.bestFor)}` : "";
       const block = [
         `${active}${c.white.bold(m.name.padEnd(22))} ${c.dim(id)}  ${label}`,
         `      ${badge}  ${c.dim(`│`)}  Context: ${c.silver(ctx)}  ${c.dim(`│`)}  In: ${c.silver(costIn)}  Out: ${c.silver(costOut)}`,
-      ].join("\n");
+        bestFor,
+      ].filter(Boolean).join("\n");
 
       if (status === "free") {
         freeModels.push(block);
