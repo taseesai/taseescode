@@ -23,8 +23,21 @@ registerTool({
   requiresApproval: true,
   async execute(args): Promise<ToolResult> {
     const command = args.command as string;
-    const cwd = args.cwd ? path.resolve(args.cwd as string) : process.cwd();
     const background = args.background as boolean;
+
+    // Validate cwd against project directory
+    let cwd = process.cwd();
+    if (args.cwd) {
+      try {
+        cwd = safePath(args.cwd as string);
+      } catch (e: any) {
+        return {
+          success: false,
+          output: "",
+          error: e.message || "Invalid working directory: path is outside the project directory.",
+        };
+      }
+    }
 
     // Block dangerous commands
     const dangerous = [
@@ -34,6 +47,12 @@ registerTool({
       /dd\s+if=/i,
       />\s*\/dev\/sd/i,
       /chmod\s+777\s+\//,
+      /chmod\s+-R\s+777/i,
+      /chown\s+-R/i,
+      /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/,         // fork bomb :(){ :|:& };
+      /\.?\/?[a-z]+\s*\(\)\s*\{\s*.*\|.*&\s*\}/, // generic fork bomb pattern
+      /curl\s+.*\|\s*(?:ba)?sh/i,                 // curl | bash
+      /wget\s+.*\|\s*sh/i,                        // wget | sh
     ];
     for (const pattern of dangerous) {
       if (pattern.test(command)) {

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { Agent } from "../core/agent";
 
 const p = {
@@ -10,10 +10,14 @@ const p = {
   red: chalk.hex("#C75050"),
 };
 
-export async function handleDiffExplain(args: string, agent: Agent): Promise<string> {
-  const subCmd = args.trim().toLowerCase();
+function isSafeGitRef(ref: string): boolean {
+  return /^[a-zA-Z0-9._\-~\/]+$/.test(ref);
+}
 
-  if (subCmd === "help") {
+export async function handleDiffExplain(args: string, agent: Agent): Promise<string> {
+  const subCmd = args.trim();
+
+  if (subCmd.toLowerCase() === "help") {
     return [
       "",
       p.white.bold("Diff-Explain — AI-Narrated Code Changes"),
@@ -38,18 +42,24 @@ export async function handleDiffExplain(args: string, agent: Agent): Promise<str
   let diffLabel = "";
 
   try {
-    if (!subCmd || subCmd === "all") {
-      diff = execSync("git diff", { encoding: "utf-8", timeout: 10000 });
+    if (!subCmd || subCmd.toLowerCase() === "all") {
+      diff = execFileSync("git", ["diff"], { encoding: "utf-8", timeout: 10000 });
       diffLabel = "unstaged changes";
-    } else if (subCmd === "staged") {
-      diff = execSync("git diff --cached", { encoding: "utf-8", timeout: 10000 });
+    } else if (subCmd.toLowerCase() === "staged") {
+      diff = execFileSync("git", ["diff", "--cached"], { encoding: "utf-8", timeout: 10000 });
       diffLabel = "staged changes";
     } else if (subCmd.startsWith("HEAD") || subCmd.match(/^[a-f0-9]{6,}$/)) {
-      diff = execSync(`git diff ${subCmd}`, { encoding: "utf-8", timeout: 10000 });
+      if (!isSafeGitRef(subCmd)) {
+        return p.red("Invalid git ref. Only alphanumeric, dots, slashes, tildes, and hyphens are allowed.").toString();
+      }
+      diff = execFileSync("git", ["diff", subCmd], { encoding: "utf-8", timeout: 10000 });
       diffLabel = `changes since ${subCmd}`;
     } else {
       // Treat as file path
-      diff = execSync(`git diff -- ${subCmd}`, { encoding: "utf-8", timeout: 10000 });
+      if (!isSafeGitRef(subCmd)) {
+        return p.red("Invalid file path. Only alphanumeric, dots, slashes, tildes, and hyphens are allowed.").toString();
+      }
+      diff = execFileSync("git", ["diff", "--", subCmd], { encoding: "utf-8", timeout: 10000 });
       diffLabel = `changes in ${subCmd}`;
     }
   } catch (e: any) {
@@ -61,7 +71,10 @@ export async function handleDiffExplain(args: string, agent: Agent): Promise<str
   }
 
   // Send to AI for narrated explanation
-  const truncated = diff.length > 8000 ? diff.slice(0, 8000) + "\n[... diff truncated ...]" : diff;
+  const maxLen = 8000;
+  const truncated = diff.length > maxLen
+    ? diff.slice(0, maxLen) + `\n[... diff truncated — showing ${maxLen} of ${diff.length} chars ...]`
+    : diff;
 
   await agent.processMessage(
     `Explain these code changes (${diffLabel}). For each changed file/section:\n` +

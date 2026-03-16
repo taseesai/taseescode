@@ -52,13 +52,6 @@ export async function recordSpend(costSAR: number, model: string, tokens: number
   await saveBudget(budget);
 }
 
-export function checkBudgetWarning(): string | null {
-  // This is called after each API call to warn about limits
-  // Returns warning message or null
-  // Implementation needs to be sync for performance, so we cache budget data
-  return null; // Placeholder - async version below
-}
-
 export async function checkBudgetWarningAsync(): Promise<string | null> {
   const budget = await loadBudget();
   const session = getSessionCost();

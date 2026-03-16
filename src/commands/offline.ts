@@ -32,7 +32,7 @@ function getOllamaModels(): string[] {
 
 function isOnline(): boolean {
   try {
-    execSync("curl -s --max-time 3 https://api.deepseek.com", { timeout: 5000, stdio: "pipe" });
+    execSync("curl -s --max-time 3 https://1.1.1.1", { timeout: 5000, stdio: "pipe" });
     return true;
   } catch { return false; }
 }
@@ -139,8 +139,8 @@ export async function handleOffline(args: string): Promise<string> {
       registerCustomModel("ollama", "http://localhost:11434/v1");
     }
 
-    setConfig("offlineEnabled" as any, true);
-    setConfig("offlineModel" as any, `custom:ollama`);
+    setConfig("offlineEnabled", true);
+    setConfig("offlineModel", `custom:ollama`);
 
     return [
       p.green("✅ Offline mode enabled!"),
@@ -152,7 +152,7 @@ export async function handleOffline(args: string): Promise<string> {
   }
 
   if (subCmd === "off") {
-    setConfig("offlineEnabled" as any, false);
+    setConfig("offlineEnabled", false);
     return p.green("✅ Offline mode disabled. Using cloud models only.").toString();
   }
 
@@ -211,7 +211,7 @@ export async function handleOffline(args: string): Promise<string> {
   const ollamaRunning = isOllamaRunning();
   const online = isOnline();
   const models = ollamaRunning ? getOllamaModels() : [];
-  const cfg = getConfig() as any;
+  const cfg = getConfig();
 
   return [
     "",

@@ -1,7 +1,6 @@
 import chalk from "chalk";
 import path from "path";
 import fs from "fs-extra";
-import { execSync } from "child_process";
 
 const p = {
   white: chalk.hex("#E8E8E8"),
@@ -29,18 +28,17 @@ const DEBT_PATTERNS = [
   { name: "Magic number", pattern: /(?<![a-zA-Z0-9_])(?:(?:timeout|delay|interval|max|min|limit|size|count|width|height)\s*[:=]\s*)\d{3,}/g, severity: "low" as const },
   { name: "Empty catch", pattern: /catch\s*\([^)]*\)\s*\{\s*\}/g, severity: "high" as const },
   { name: "Nested callbacks (>3)", pattern: /\)\s*=>\s*\{[^}]*\)\s*=>\s*\{[^}]*\)\s*=>\s*\{/g, severity: "high" as const },
-  { name: "Long function (heuristic)", pattern: /(?:function|const\s+\w+\s*=\s*(?:async\s*)?\()/g, severity: "low" as const },
-  { name: "Duplicate string literal", pattern: /(['"])[^'"]{10,}\1(?=.*\1[^'"]{10,}\1)/g, severity: "low" as const },
 ];
 
 const SCAN_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".py", ".go"];
 const IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".next", "__pycache__"];
 
-async function scanForDebt(cwd: string, _maxFiles: number = 300): Promise<DebtItem[]> {
+async function scanForDebt(cwd: string, maxFiles: number = 300): Promise<DebtItem[]> {
   const items: DebtItem[] = [];
+  let filesScanned = 0;
 
   async function walk(dir: string, depth: number = 0) {
-    if (depth > 5 || items.length > 500) return;
+    if (depth > 5 || items.length > 500 || filesScanned >= maxFiles) return;
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
@@ -49,6 +47,8 @@ async function scanForDebt(cwd: string, _maxFiles: number = 300): Promise<DebtIt
         if (entry.isDirectory()) {
           await walk(fullPath, depth + 1);
         } else if (SCAN_EXTENSIONS.some(ext => entry.name.endsWith(ext))) {
+          if (filesScanned >= maxFiles) return;
+          filesScanned++;
           try {
             const content = await fs.readFile(fullPath, "utf-8");
             const relativePath = path.relative(cwd, fullPath);
@@ -117,15 +117,25 @@ export async function handleDebt(args: string): Promise<string> {
 
   const items = await scanForDebt(cwd);
 
-  // Count files scanned
+  // Count files scanned using Node.js native walk
   let fileCount = 0;
-  try {
-    const output = execSync(
-      `find . -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \\) -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.git/*" | wc -l`,
-      { cwd, encoding: "utf-8", timeout: 5000 }
-    );
-    fileCount = parseInt(output.trim()) || 1;
-  } catch { fileCount = 1; }
+  function countFiles(dir: string, depth: number = 0): void {
+    if (depth > 5) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (IGNORE_DIRS.includes(entry.name)) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          countFiles(full, depth + 1);
+        } else if (SCAN_EXTENSIONS.some(ext => entry.name.endsWith(ext))) {
+          fileCount++;
+        }
+      }
+    } catch {}
+  }
+  countFiles(cwd);
+  if (fileCount === 0) fileCount = 1;
 
   const score = calculateDebtScore(items, fileCount);
   const counts = { high: 0, medium: 0, low: 0 };

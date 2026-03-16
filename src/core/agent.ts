@@ -248,10 +248,14 @@ MEMORY RULES:
       const provider = getProvider(this.currentModel);
       const tools = getToolDefinitions();
 
-      // Determine if we should stream (defined outside try for scope access)
+      // Track whether streaming was actually used
+      let didStream = false;
       const streamCallback: StreamCallback | undefined =
         this.streamingEnabled && this.callbacks.onStreamChunk
-          ? this.callbacks.onStreamChunk
+          ? (chunk: string) => {
+              didStream = true;
+              this.callbacks.onStreamChunk!(chunk);
+            }
           : undefined;
 
       try {
@@ -341,7 +345,6 @@ MEMORY RULES:
         // Auto-memory: silently record assistant response
         this.autoMemory.recordAssistant(response.content);
         // Only send onResponse if we did NOT stream (streaming already showed the text)
-        const didStream = streamCallback && provider.chatStream;
         if (!didStream) {
           this.callbacks.onResponse(response.content);
         }
@@ -352,7 +355,7 @@ MEMORY RULES:
       this.conversation.addAssistant(response.content, response.toolCalls);
 
       // Show any text content before tool calls (if not already streamed)
-      if (response.content && (!this.callbacks.onStreamChunk || !provider.chatStream)) {
+      if (response.content && !didStream) {
         this.callbacks.onResponse(response.content);
       }
 

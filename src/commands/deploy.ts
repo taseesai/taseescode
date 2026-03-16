@@ -105,12 +105,14 @@ export async function handleDeploy(args: string): Promise<string> {
   }
 
   if (!platform) {
-    return [
+    const installMsg = [
       "",
       p.gray("No deployment tool found. Installing Vercel CLI..."),
     ].join("\n");
 
-    // Auto-install vercel
+    // Log the message but don't return — auto-install vercel
+    console.log(installMsg);
+
     const result = ensureInstalled("vercel", { npm: "vercel" });
     if (result.success) {
       platform = "vercel";

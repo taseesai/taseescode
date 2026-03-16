@@ -1,40 +1,91 @@
 // /standup — Generate standup from recent git activity
+import { execFileSync } from 'child_process';
 import { Agent } from '../core/agent';
+
+const TIME_ALIASES: Record<string, string> = {
+  'yesterday': '1 days ago',
+  'today': '12 hours ago',
+  'last week': '7 days ago',
+  'last month': '30 days ago',
+  'this week': '5 days ago',
+};
+
+function isSafeTimeExpr(since: string): boolean {
+  return /^\d+\s+(hours?|days?|weeks?|months?)\s+ago$/.test(since);
+}
+
+function getGitUserName(): string {
+  try {
+    return execFileSync('git', ['config', 'user.name'], {
+      encoding: 'utf8',
+      timeout: 5000,
+    }).trim();
+  } catch {
+    return '';
+  }
+}
 
 export async function handleStandup(args: string, agent: Agent): Promise<string> {
   try {
-    const { execSync } = require('child_process');
+    const rawInput = args.trim().toLowerCase();
 
-    const since = args.trim() || '24 hours ago';
-    // Validate: only allow safe time expressions
-    if (!/^\d+\s+(hours?|days?|weeks?|months?)\s+ago$/.test(since) && since !== '24 hours ago') {
-      return 'Invalid time format. Use: /standup 48 hours ago';
+    // Resolve time expression
+    let since: string;
+    if (!rawInput) {
+      since = '24 hours ago';
+    } else if (TIME_ALIASES[rawInput]) {
+      since = TIME_ALIASES[rawInput];
+    } else if (isSafeTimeExpr(rawInput)) {
+      since = rawInput;
+    } else {
+      return 'Invalid time format. Use: /standup 48 hours ago, /standup yesterday, /standup last week';
     }
 
-    // Get recent commits
+    // Get recent commits using execFileSync (no shell injection)
     let commits = '';
+    const userName = getGitUserName();
     try {
-      commits = execSync(`git log --oneline --since="${since}" --author="$(git config user.name)" 2>/dev/null || git log --oneline -10 --since="${since}"`, {
-        encoding: 'utf8', timeout: 10000
+      const gitArgs = ['log', '--oneline', `--since=${since}`];
+      if (userName) {
+        gitArgs.push(`--author=${userName}`);
+      }
+      commits = execFileSync('git', gitArgs, {
+        encoding: 'utf8',
+        timeout: 10000,
       });
     } catch {
-      commits = execSync('git log --oneline -10', { encoding: 'utf8', timeout: 10000 });
+      try {
+        commits = execFileSync('git', ['log', '--oneline', '-10'], {
+          encoding: 'utf8',
+          timeout: 10000,
+        });
+      } catch {
+        commits = '';
+      }
     }
 
     // Get current diff stats
     let diffStat = '';
     try {
-      diffStat = execSync('git diff --stat HEAD~5 HEAD 2>/dev/null || git diff --stat', {
-        encoding: 'utf8', timeout: 10000
+      diffStat = execFileSync('git', ['diff', '--stat', 'HEAD~5', 'HEAD'], {
+        encoding: 'utf8', timeout: 10000,
       });
     } catch {
-      diffStat = '(no diff stats available)';
+      try {
+        diffStat = execFileSync('git', ['diff', '--stat'], {
+          encoding: 'utf8', timeout: 10000,
+        });
+      } catch {
+        diffStat = '(no diff stats available)';
+      }
     }
 
     // Get current branch
     let branch = '';
     try {
-      branch = execSync('git branch --show-current', { encoding: 'utf8', timeout: 5000 }).trim();
+      branch = execFileSync('git', ['branch', '--show-current'], {
+        encoding: 'utf8', timeout: 5000,
+      }).trim();
     } catch {
       branch = 'unknown';
     }

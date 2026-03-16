@@ -15,6 +15,12 @@ interface TrustScore {
   factors: Array<{ name: string; score: number; reason: string }>;
 }
 
+let lastResponseInfo: { text: string; usedTools: boolean; toolCount: number; questionLength: number } | null = null;
+
+export function setLastResponse(text: string, usedTools: boolean, toolCount: number, questionLength: number): void {
+  lastResponseInfo = { text, usedTools, toolCount, questionLength };
+}
+
 export function analyzeConfidence(
   response: string,
   usedTools: boolean,
@@ -36,7 +42,7 @@ export function analyzeConfidence(
     const toolScore = Math.min(95, 70 + toolCount * 8);
     factors.push({ name: "Grounded in data", score: toolScore, reason: `Used ${toolCount} tool(s) to verify` });
   } else {
-    factors.push({ name: "Grounded in data", score: 40, reason: "No tools used — response from memory only" });
+    factors.push({ name: "Grounded in data", score: 40, reason: "No tools used \u2014 response from memory only" });
   }
 
   // Factor 3: Hedging language
@@ -113,10 +119,10 @@ export function formatTrustScore(score: TrustScore): string {
 export async function handleTrust(args: string): Promise<string> {
   const subCmd = args.trim().toLowerCase();
 
-  if (!subCmd || subCmd === "help") {
+  if (subCmd === "help") {
     return [
       "",
-      p.white.bold("Trust — AI Confidence Scoring"),
+      p.white.bold("Trust \u2014 AI Confidence Scoring"),
       p.gray("\u2501".repeat(40)),
       "",
       "  /trust              Show score for last response",
@@ -134,6 +140,19 @@ export async function handleTrust(args: string): Promise<string> {
       p.dim("  automatically re-checked with a second model pass."),
       "",
     ].join("\n");
+  }
+
+  if (!subCmd) {
+    if (!lastResponseInfo) {
+      return p.yellow("No response to score yet. Chat with TaseesCode first, then run /trust.").toString();
+    }
+    const score = analyzeConfidence(
+      lastResponseInfo.text,
+      lastResponseInfo.usedTools,
+      lastResponseInfo.toolCount,
+      lastResponseInfo.questionLength,
+    );
+    return formatTrustScore(score);
   }
 
   if (subCmd === "auto on") {

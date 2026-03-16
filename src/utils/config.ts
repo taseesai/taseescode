@@ -31,6 +31,8 @@ export interface TaseesConfig {
     addedAt: string;
   }>;
   trustAutoVerify: boolean;
+  offlineEnabled: boolean;
+  offlineModel: string | null;
 }
 
 const defaults: TaseesConfig = {
@@ -56,6 +58,8 @@ const defaults: TaseesConfig = {
   },
   customApis: {},
   trustAutoVerify: false,
+  offlineEnabled: false,
+  offlineModel: null,
 };
 
 const configDir = path.join(

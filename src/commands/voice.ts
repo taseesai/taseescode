@@ -50,18 +50,6 @@ function getRecordCommand(): { cmd: string; args: string[]; available: boolean }
     };
   } catch {}
 
-  // macOS: check for afrecord (built-in, no install needed)
-  if (process.platform === "darwin") {
-    try {
-      // Use macOS built-in `say` to verify audio system works
-      return {
-        cmd: "rec",
-        args: ["-q", "-r", "16000", "-c", "1", "-b", "16", "-t", "wav"],
-        available: false, // Will prompt to install
-      };
-    } catch {}
-  }
-
   return { cmd: "rec", args: [], available: false };
 }
 
@@ -169,10 +157,11 @@ export async function startVoiceRecording(
     callbacks.onError("✅ Audio recorder installed!");
   }
 
-  // Create temp directory for audio chunks
-  const tempDir = path.join(getConfigDir(), "voice-tmp");
+  // Create unique temp directory per recording to avoid race conditions
+  const recordingId = `voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const tempDir = path.join(getConfigDir(), "voice-tmp", recordingId);
   await fs.ensureDir(tempDir);
-  const audioPath = path.join(tempDir, `recording-${Date.now()}.wav`);
+  const audioPath = path.join(tempDir, "recording.wav");
 
   callbacks.onListening();
 

@@ -22,6 +22,7 @@ interface ReplayEntry {
 let recording = false;
 let currentRecording: ReplayEntry[] = [];
 let recordingStartTime: string = "";
+let recordingName: string = "";
 
 export function isRecording(): boolean {
   return recording;
@@ -117,8 +118,10 @@ async function exportToMarkdown(filename: string): Promise<string> {
   }
 
   const outPath = path.resolve(process.cwd(), `${data.name}.md`);
+  const exists = await fs.pathExists(outPath);
   await fs.writeFile(outPath, mdLines.join("\n"), "utf-8");
-  return p.green(`Exported to: ${outPath}`).toString();
+  const warning = exists ? p.yellow(`  (overwritten existing file)`) : "";
+  return p.green(`Exported to: ${outPath}`).toString() + (warning ? `\n${warning}` : "");
 }
 
 export async function handleReplay(args: string): Promise<string> {
@@ -152,15 +155,14 @@ export async function handleReplay(args: string): Promise<string> {
     recording = true;
     currentRecording = [];
     recordingStartTime = new Date().toISOString();
-    const name = parts[1] || `session-${Date.now()}`;
-    return p.green(`Recording started: "${name}"\n   All messages will be saved. Use /replay stop to finish.`).toString();
+    recordingName = parts[1] || `session-${Date.now()}`;
+    return p.green(`Recording started: "${recordingName}"\n   All messages will be saved. Use /replay stop to finish.`).toString();
   }
 
   if (subCmd === "stop") {
     if (!recording) return p.yellow("Not recording. Use /replay start to begin.").toString();
     recording = false;
-    const name = parts[1];
-    const filePath = await saveRecording(name);
+    const filePath = await saveRecording(recordingName || undefined);
     const count = currentRecording.length;
     currentRecording = [];
     return p.green(`Recording saved! ${count} entries.\n   File: ${filePath}\n   Play: /replay play ${path.basename(filePath, ".json")}`).toString();

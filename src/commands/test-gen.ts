@@ -59,8 +59,9 @@ export async function handleTestGen(args: string, agent: Agent): Promise<string>
     ].join("\n");
   }
 
-  const shouldRun = filePath.includes("--run");
-  const cleanPath = filePath.replace("--run", "").trim();
+  const parts = args.trim().split(/\s+/);
+  const shouldRun = parts.includes("--run");
+  const cleanPath = parts.filter(p => p !== "--run").join(" ").trim();
   const fullPath = path.resolve(cwd, cleanPath);
 
   if (!(await fs.pathExists(fullPath))) {
@@ -79,7 +80,11 @@ export async function handleTestGen(args: string, agent: Agent): Promise<string>
   // Generate test file path
   const parsed = path.parse(cleanPath);
   const testFileName = `${parsed.name}${testExt}`;
-  const testDir = parsed.dir.includes("src") ? parsed.dir.replace("src", "__tests__") : parsed.dir;
+  const dirParts = parsed.dir.split(path.sep);
+  const srcIndex = dirParts.indexOf("src");
+  const testDir = srcIndex >= 0
+    ? path.join(...dirParts.slice(0, srcIndex), "__tests__", ...dirParts.slice(srcIndex + 1))
+    : parsed.dir;
   const testPath = path.join(testDir || "__tests__", testFileName);
 
   // Send to AI
@@ -101,21 +106,17 @@ Generate the complete test file. Use the create_file tool to save it.`;
 
   await agent.processMessage(prompt);
 
-  const lines = [
-    "",
-    p.green(`✅ Tests generated for ${cleanPath}`),
-    p.dim(`   Framework: ${framework}`),
-    p.dim(`   Test file: ${testPath}`),
-  ];
-
   if (shouldRun && testInfo) {
-    lines.push("", p.gray(`   Running: ${testInfo.cmd} ${testPath}...`));
-    lines.push(p.dim("   (AI will execute the test command)"));
-
     // Ask AI to run the tests
     await agent.processMessage(`Run the tests: ${testInfo.cmd} ${testPath}`);
   }
 
-  lines.push("");
+  const lines = [
+    "",
+    p.dim(`   Framework: ${framework}`),
+    p.dim(`   Test file: ${testPath}`),
+    "",
+  ];
+
   return lines.join("\n");
 }
