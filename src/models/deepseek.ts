@@ -92,16 +92,13 @@ export class DeepSeekProvider implements ModelProvider {
       body.tool_choice = "auto";
     }
 
-    try {
-      return await parseOpenAICompatibleSSE(
-        `${config.apiBase}/chat/completions`,
-        body,
-        { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        onChunk
-      );
-    } catch {
-      // Fall back to non-streaming
-      return this.chat(messages, tools, apiKey, _modelId);
-    }
+    // No fallback to chat() — if streaming fails after sending chunks,
+    // falling back would cause doubled output
+    return await parseOpenAICompatibleSSE(
+      `${config.apiBase}/chat/completions`,
+      body,
+      { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      onChunk
+    );
   }
 }

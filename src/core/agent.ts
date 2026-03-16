@@ -76,7 +76,7 @@ export class Agent {
   private conversation: Conversation;
   private currentModel: string;
   private callbacks: AgentCallbacks;
-  private streamingEnabled: boolean = true;
+  private streamingEnabled: boolean = false; // Disabled until streaming dedup is bulletproof
   private autoMemory: AutoMemory;
 
   constructor(callbacks: AgentCallbacks) {
@@ -260,24 +260,26 @@ MEMORY RULES:
 
       try {
 
-        response = await withRetry(async () => {
-          if (streamCallback && provider.chatStream) {
-            return provider.chatStream(
-              this.conversation.getMessages(),
-              tools,
-              apiKey,
-              this.currentModel,
-              streamCallback
-            );
-          } else {
+        if (streamCallback && provider.chatStream) {
+          // Streaming: NO retry — can't retry after chunks are already sent
+          response = await provider.chatStream(
+            this.conversation.getMessages(),
+            tools,
+            apiKey,
+            this.currentModel,
+            streamCallback
+          );
+        } else {
+          // Non-streaming: safe to retry
+          response = await withRetry(async () => {
             return provider.chat(
               this.conversation.getMessages(),
               tools,
               apiKey,
               this.currentModel
             );
-          }
-        }, { maxRetries: 3 });
+          }, { maxRetries: 3 });
+        }
 
         // Signal stream end
         if (streamCallback && this.callbacks.onStreamEnd) {
