@@ -1,7 +1,9 @@
 import chalk from "chalk";
 import { MODEL_REGISTRY } from "../models";
-import { getConfig } from "../utils/config";
+import { getConfig, setNestedConfig } from "../utils/config";
 import { loadCustomModelsFromConfig } from "../models";
+import { startAuthServer } from "../utils/auth-server";
+import axios from "axios";
 
 const c = {
   white:  chalk.hex("#E8E8E8"),
@@ -191,6 +193,11 @@ export function modelCommand(args: string[], currentModel: string): string {
       ].join("\n");
     }
 
+    // For Anthropic — launch OAuth flow
+    if (m.provider === "anthropic") {
+      return `__AUTH_ANTHROPIC__${modelId}`;
+    }
+
     const keyField = REQUIRES_KEY[m.provider];
     return [
       "",
@@ -202,7 +209,6 @@ export function modelCommand(args: string[], currentModel: string): string {
       c.white(`  /config set apiKeys.${keyField} YOUR_KEY_HERE`),
       "",
       c.dim(`  Get a key at:`),
-      m.provider === "anthropic" ? c.dim("  console.anthropic.com") : "",
       m.provider === "openai"    ? c.dim("  platform.openai.com/api-keys") : "",
       m.provider === "qwen"      ? c.dim("  dashscope.console.aliyun.com") : "",
       m.provider === "kimi"      ? c.dim("  platform.moonshot.cn") : "",
@@ -213,4 +219,27 @@ export function modelCommand(args: string[], currentModel: string): string {
   }
 
   return `__SWITCH__${modelId}`;
+}
+
+/**
+ * Launch Anthropic OAuth flow — opens browser for authentication
+ */
+export async function launchAnthropicAuth(): Promise<{ success: boolean; key: string }> {
+  const validateKey = async (key: string): Promise<boolean> => {
+    try {
+      await axios.post("https://api.anthropic.com/v1/messages",
+        { model: "claude-sonnet-4-6", max_tokens: 1, messages: [{ role: "user", content: "hi" }] },
+        { headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 10000 }
+      );
+      return true;
+    } catch { return false; }
+  };
+
+  const result = await startAuthServer("Anthropic", "https://console.anthropic.com/settings/keys", validateKey);
+
+  if (result.success && result.key) {
+    setNestedConfig("apiKeys.anthropic", result.key);
+    return { success: true, key: result.key };
+  }
+  return { success: false, key: "" };
 }

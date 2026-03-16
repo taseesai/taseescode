@@ -134,13 +134,38 @@ export class AutoMemory {
   }
 
   /**
-   * Flush buffer to disk — debounced to avoid excessive I/O
+   * Flush buffer to disk — short debounce but also register exit handler
    */
   private scheduleFlush(): void {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
     }
-    this.flushTimer = setTimeout(() => this.flush(), 2000); // 2s debounce
+    this.flushTimer = setTimeout(() => this.flush(), 500); // 500ms debounce (was 2s)
+
+    // Ensure flush on unexpected exit (Ctrl+C, crash)
+    this.registerExitHandler();
+  }
+
+  private exitHandlerRegistered = false;
+  private registerExitHandler(): void {
+    if (this.exitHandlerRegistered) return;
+    this.exitHandlerRegistered = true;
+
+    const flushSync = () => {
+      if (this.buffer.length === 0) return;
+      try {
+        const fs = require('fs');
+        const dir = path.join(this.cwd, MEMORY_DIR);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const entries = this.buffer.join("\n") + "\n";
+        this.buffer = [];
+        fs.appendFileSync(this.memoryPath, entries, "utf-8");
+      } catch {}
+    };
+
+    process.on('exit', flushSync);
+    process.on('SIGINT', () => { flushSync(); process.exit(0); });
+    process.on('SIGTERM', () => { flushSync(); process.exit(0); });
   }
 
   /**

@@ -7,7 +7,7 @@ import { Message } from "./ui/message";
 import { Spinner } from "./ui/spinner";
 import { helpCommand } from "./commands/help";
 import { clearCommand } from "./commands/clear";
-import { modelCommand } from "./commands/model";
+import { modelCommand, launchAnthropicAuth } from "./commands/model";
 import { costCommand } from "./commands/cost";
 import { configCommand } from "./commands/config-cmd";
 import { memoryCommand } from "./commands/memory-cmd";
@@ -230,6 +230,21 @@ export const App: React.FC = () => {
               const newModel = result.replace("__SWITCH__", "");
               agent.setModel(newModel);
               output = `✅ Switched to ${MODEL_REGISTRY[newModel].name}`;
+            } else if (result.startsWith("__AUTH_ANTHROPIC__")) {
+              const targetModel = result.replace("__AUTH_ANTHROPIC__", "");
+              setMessages(prev => [...prev, {
+                id: ++msgId, role: "system",
+                content: `🌐 Opening browser for Anthropic authentication...\n   Complete sign-in in your browser — TaseesCode will detect it automatically.`
+              }]);
+              setIsLoading(true);
+              const authResult = await launchAnthropicAuth();
+              setIsLoading(false);
+              if (authResult.success) {
+                agent.setModel(targetModel);
+                output = `✅ Authenticated with Anthropic! Switched to ${MODEL_REGISTRY[targetModel].name}`;
+              } else {
+                output = `Authentication cancelled. Use /config set apiKeys.anthropic YOUR_KEY to set manually.`;
+              }
             } else if (result.startsWith("__LOCKED__")) {
               output = result;
             } else {

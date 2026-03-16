@@ -4,7 +4,7 @@ import boxen from "boxen";
 import chalk from "chalk";
 import { MODEL_REGISTRY } from "../models";
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 
 export function getBannerText(modelId?: string): string {
   const title = chalk.hex("#E8E8E8").bold("◆  TaseesCode  ◆");
