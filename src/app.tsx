@@ -20,6 +20,7 @@ import { handleFix } from "./commands/fix";
 import { handleHistory } from "./commands/history";
 import { handleStandup } from "./commands/standup";
 import { handleHealth } from "./commands/health";
+import { handleMultiAgent } from "./commands/multiagent";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
 import { getConfig } from "./utils/config";
@@ -201,7 +202,7 @@ export const App: React.FC = () => {
       const SLASH_CMDS = [
         "help","clear","model","cost","config","memory","skills","exit","api",
         "review","explain","fix","history","standup","health",
-        "compact","permissions",
+        "compact","permissions","multiagent",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -319,6 +320,45 @@ export const App: React.FC = () => {
               '  /config set permissions.allowCommandRun ask|always|never',
             ].join('\n');
             break;
+          }
+          case "multiagent": {
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            await handleMultiAgent(argsStr, agent.getModel(), {
+              addMessage: (role, content, toolName?, toolSuccess?) => {
+                setMessages(prev => [...prev, {
+                  id: ++msgId,
+                  role: role as any,
+                  content,
+                  toolName,
+                  toolSuccess,
+                }]);
+              },
+              setLoading: (loading) => setIsLoading(loading),
+              onApproval: (name, args) => {
+                return new Promise<boolean>((resolve) => {
+                  setApproval({ toolName: name, args, resolve });
+                });
+              },
+              onStreamChunk: (chunk) => {
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.isStreaming) {
+                    return [...prev.slice(0, -1), { ...last, content: last.content + chunk }];
+                  }
+                  return [...prev, { id: ++msgId, role: "assistant", content: chunk, isStreaming: true }];
+                });
+              },
+              onStreamEnd: () => {
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.isStreaming) {
+                    return [...prev.slice(0, -1), { ...last, isStreaming: false }];
+                  }
+                  return prev;
+                });
+              },
+            });
+            return;
           }
           case "exit":
             output = exitCommand();

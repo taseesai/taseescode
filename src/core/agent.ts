@@ -211,8 +211,15 @@ MEMORY RULES:
 
     let response: ModelResponse;
     let maxIterations = 10;
+    let iteration = 0;
 
     while (maxIterations-- > 0) {
+      // Rate limit protection: add delay between iterations (tool call loops)
+      if (iteration > 0) {
+        await new Promise(r => setTimeout(r, 1000)); // 1s between API calls
+      }
+      iteration++;
+
       this.callbacks.onThinking();
 
       const config = getConfig();
@@ -258,7 +265,7 @@ MEMORY RULES:
               this.currentModel
             );
           }
-        }, { maxRetries: 2 });
+        }, { maxRetries: 3 });
 
         // Signal stream end
         if (streamCallback && this.callbacks.onStreamEnd) {
@@ -267,6 +274,18 @@ MEMORY RULES:
       } catch (err: unknown) {
         if (originalModel) this.currentModel = originalModel;
         const errorMessage = err instanceof Error ? err.message : String(err);
+
+        // User-friendly rate limit message
+        if (errorMessage.includes('429')) {
+          const modelName = MODEL_REGISTRY[this.currentModel]?.name || this.currentModel;
+          this.callbacks.onError(
+            `⏳ Rate limited by ${modelName}. The provider is throttling requests.\n` +
+            `   Try: /model deepseek-v3 (paid, generous limits)\n` +
+            `   Or wait 30 seconds and try again.`
+          );
+          return "";
+        }
+
         this.callbacks.onError(`API error: ${errorMessage}`);
         return `Error: ${errorMessage}`;
       }

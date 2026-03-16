@@ -36,6 +36,9 @@ ${g("  API / الاتصالات")}
   ${w("/api test [name]")}  Test API connection — ${d("اختبار الاتصال")}
   ${w("/api remove [name]")} Remove API — ${d("إزالة API")}
 
+${g("  Multi-Agent / الوكلاء المتعددين")}
+  ${w("/multiagent [task]")}  Split task into parallel agents — ${d("تقسيم المهمة لوكلاء")}
+
 ${g("  Code / الكود")}
   ${w("/review [file]")}    Review code or staged changes — ${d("مراجعة الكود")}
   ${w("/explain [file]")}   Explain what code does — ${d("شرح الكود")}

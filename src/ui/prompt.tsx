@@ -45,6 +45,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/api add",        syntax: "/api add [name] [url]",  desc: "Connect any API",            descAr: "ربط API خارجي" },
   { cmd: "/api list",       syntax: "/api list",              desc: "List connected APIs",        descAr: "عرض الاتصالات" },
   { cmd: "/api test",       syntax: "/api test [name]",       desc: "Test API connection",        descAr: "اختبار الاتصال" },
+  { cmd: "/multiagent",     syntax: "/multiagent [task]",      desc: "Split task into parallel agents", descAr: "تقسيم المهمة لوكلاء متعددين" },
   { cmd: "/exit",           syntax: "/exit",                  desc: "Exit TaseesCode",            descAr: "الخروج" },
 ];
 
