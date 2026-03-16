@@ -459,10 +459,35 @@ export const App: React.FC = () => {
             if (modelId.startsWith("__LOCKED__")) {
               const id = modelId.replace("__LOCKED__", "");
               const m = MODEL_REGISTRY[id];
-              setMessages(prev => [...prev, {
-                id: ++msgId, role: "system",
-                content: `🔒 ${m.name} needs an API key. Set it with: /config set apiKeys.${m.provider} YOUR_KEY`
-              }]);
+
+              // Anthropic models → launch OAuth flow
+              if (m.provider === "anthropic") {
+                setMessages(prev => [...prev, {
+                  id: ++msgId, role: "system",
+                  content: `🌐 Opening browser for Anthropic authentication...\n   Complete sign-in in your browser — TaseesCode will detect it automatically.`
+                }]);
+                setIsLoading(true);
+                launchAnthropicAuth().then((authResult) => {
+                  setIsLoading(false);
+                  if (authResult.success) {
+                    agent.setModel(id);
+                    setMessages(prev => [...prev, {
+                      id: ++msgId, role: "system",
+                      content: `✅ Authenticated with Anthropic! Switched to ${m.name}`
+                    }]);
+                  } else {
+                    setMessages(prev => [...prev, {
+                      id: ++msgId, role: "system",
+                      content: `Authentication cancelled. Use /config set apiKeys.anthropic YOUR_KEY to set manually.`
+                    }]);
+                  }
+                });
+              } else {
+                setMessages(prev => [...prev, {
+                  id: ++msgId, role: "system",
+                  content: `🔒 ${m.name} needs an API key. Set it with: /config set apiKeys.${m.provider} YOUR_KEY`
+                }]);
+              }
             } else {
               agent.setModel(modelId);
               setMessages(prev => [...prev, {
