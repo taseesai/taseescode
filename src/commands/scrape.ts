@@ -50,6 +50,11 @@ export async function handleScrape(
       "  /scrape https://site.com --crawl 20",
       "  /scrape https://api-site.com --api",
       "  /scrape https://site.com --select \"article.main\"",
+      "",
+      "Search (no URL needed):",
+      "  /scrape best React frameworks 2026",
+      "  /scrape how to deploy Next.js to Vercel",
+      "  /scrape Saudi Vision 2030 latest updates",
     ].join("\n");
   }
 
@@ -58,9 +63,12 @@ export async function handleScrape(
   let url = "";
   let mode: ScrapeMode = "smart";
   let maxPages = 10;
+  let searchResults = 3;
   let output: string | undefined;
   let selector: string | undefined;
+  const queryParts: string[] = [];
 
+  // Extract flags first
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (part.startsWith("http://") || part.startsWith("https://")) {
@@ -75,7 +83,6 @@ export async function handleScrape(
       mode = "links";
     } else if (part === "--crawl") {
       mode = "crawl";
-      // Check if next arg is a number
       if (parts[i + 1] && /^\d+$/.test(parts[i + 1])) {
         maxPages = parseInt(parts[i + 1]);
         i++;
@@ -90,17 +97,47 @@ export async function handleScrape(
     } else if (part === "--select" && parts[i + 1]) {
       selector = parts[i + 1].replace(/"/g, "");
       i++;
-    } else if (!url && !part.startsWith("--")) {
-      // Try to treat as URL
-      url = part.startsWith("http") ? part : `https://${part}`;
+    } else if (part === "--results" && parts[i + 1]) {
+      searchResults = parseInt(parts[i + 1]) || 3;
+      i++;
+    } else if (!part.startsWith("--")) {
+      queryParts.push(part);
     }
   }
 
-  if (!url) {
-    return "❌ No URL provided. Usage: /scrape <url> [--mode]";
+  // Decide: URL scrape or topic search?
+  const query = queryParts.join(" ");
+  const isUrl = url || (query && (query.includes(".com") || query.includes(".org") || query.includes(".io") || query.includes(".net") || query.includes("http")));
+
+  if (!url && query && !isUrl) {
+    // Topic search — no URL, just a query
+    mode = "search";
+    onStatus(`🔍 Searching: "${query}"...`);
+    try {
+      const result = await scrape({ mode: "search", url: "", query, searchResults });
+      if (!result.success) return `❌ Search failed: ${result.error}`;
+      const finalOutput = result.content || "";
+      if (output) {
+        const fs = require("fs-extra");
+        const outPath = require("path").resolve(process.cwd(), output);
+        await fs.writeFile(outPath, finalOutput, "utf-8");
+        return finalOutput + `\n\n💾 Saved to: ${outPath}`;
+      }
+      return finalOutput;
+    } catch (err: any) {
+      return `❌ Search error: ${err.message}`;
+    }
   }
 
-  // Auto-add https if missing
+  // If no explicit URL but query looks like a domain, make it a URL
+  if (!url && query) {
+    url = query.startsWith("http") ? query : `https://${query}`;
+  }
+
+  if (!url) {
+    return "❌ No URL or search query provided.\n\nUsage:\n  /scrape <url>           Scrape a page\n  /scrape <topic>         Search and scrape results";
+  }
+
   if (!url.startsWith("http")) {
     url = `https://${url}`;
   }
@@ -114,6 +151,7 @@ export async function handleScrape(
     crawl: `🕷️ Crawling site (max ${maxPages} pages)`,
     api: "🔌 Discovering API endpoints",
     raw: "📝 Fetching raw HTML",
+    search: "🔍 Searching",
   };
 
   onStatus(`${modeLabels[mode]}: ${url}...`);

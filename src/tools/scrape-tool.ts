@@ -4,33 +4,39 @@ import { scrape } from "../core/scraper";
 registerTool({
   name: "scrape_url",
   description:
-    "Scrape a webpage and return its content as clean Markdown. " +
-    "Use this to read web pages, extract articles, get documentation, or research topics. " +
-    "Returns clean text content, not raw HTML.",
+    "Scrape a webpage OR search the web for a topic and return content as clean Markdown. " +
+    "Use this to read web pages, research topics, get documentation, find information. " +
+    "For URLs: provide the url field. For topic search: provide the query field instead.",
   parameters: {
     type: "object",
     properties: {
-      url: { type: "string", description: "The URL to scrape" },
+      url: { type: "string", description: "URL to scrape (optional if query is provided)" },
+      query: { type: "string", description: "Search query to find and scrape results (optional if url is provided)" },
       mode: {
         type: "string",
-        description: "Scrape mode: smart (default), full (JS-rendered), links, raw",
-        enum: ["smart", "full", "links", "raw"],
+        description: "Scrape mode: smart (default), full (JS-rendered), links, raw, search",
+        enum: ["smart", "full", "links", "raw", "search"],
       },
       selector: {
         type: "string",
         description: "CSS selector to extract specific elements (optional)",
       },
     },
-    required: ["url"],
+    required: [],
   },
   requiresApproval: false, // Reading web content is safe
   async execute(args): Promise<ToolResult> {
-    const url = args.url as string;
-    const mode = (args.mode as any) || "smart";
+    const url = (args.url as string) || "";
+    const query = args.query as string | undefined;
+    const mode = query && !url ? "search" : ((args.mode as any) || "smart");
     const selector = args.selector as string | undefined;
 
+    if (!url && !query) {
+      return { success: false, output: "", error: "Provide either a url or query parameter" };
+    }
+
     try {
-      const result = await scrape({ mode, url, selector });
+      const result = await scrape({ mode, url, query, selector });
 
       if (!result.success) {
         return { success: false, output: "", error: result.error || "Scrape failed" };

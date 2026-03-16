@@ -35,8 +35,10 @@ async function loadReadability() {
 }
 
 export interface ScrapeOptions {
-  mode: "smart" | "screenshot" | "pdf" | "links" | "full" | "crawl" | "api" | "raw";
+  mode: "smart" | "screenshot" | "pdf" | "links" | "full" | "crawl" | "api" | "raw" | "search";
   url: string;
+  query?: string;        // For search mode
+  searchResults?: number; // How many results to scrape (default 3)
   depth?: number;        // For crawl mode
   maxPages?: number;     // For crawl mode
   output?: string;       // Output file path
@@ -488,13 +490,141 @@ async function scrapeRaw(url: string): Promise<ScrapeResult> {
   };
 }
 
+// ─── Search: Find + Scrape ───
+async function scrapeSearch(query: string, maxResults: number = 3): Promise<ScrapeResult> {
+  // Use multiple search engines for reliability
+  const searchUrls = [
+    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+    `https://search.brave.com/search?q=${encodeURIComponent(query)}`,
+  ];
+
+  let resultLinks: { title: string; url: string; snippet: string }[] = [];
+
+  // Try DuckDuckGo HTML (most reliable, no JS needed)
+  try {
+    const { html } = await smartFetch(searchUrls[0]);
+    const $ = cheerio.load(html);
+
+    $(".result__body, .results_links").each((i, el) => {
+      if (resultLinks.length >= maxResults * 2) return;
+      const titleEl = $(el).find(".result__a, .result__title a");
+      const snippetEl = $(el).find(".result__snippet");
+      const href = titleEl.attr("href") || "";
+
+      // DuckDuckGo wraps URLs in redirects
+      let cleanUrl = href;
+      try {
+        const match = href.match(/uddg=([^&]+)/);
+        if (match) cleanUrl = decodeURIComponent(match[1]);
+      } catch {}
+
+      if (cleanUrl && cleanUrl.startsWith("http")) {
+        resultLinks.push({
+          title: titleEl.text().trim(),
+          url: cleanUrl,
+          snippet: snippetEl.text().trim(),
+        });
+      }
+    });
+  } catch {}
+
+  // Fallback: try Google via scraping (less reliable)
+  if (resultLinks.length === 0) {
+    try {
+      const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=${maxResults + 2}`;
+      const { html } = await smartFetch(googleUrl);
+      const $ = cheerio.load(html);
+
+      $("div.g, div[data-sokoban-container]").each((i, el) => {
+        if (resultLinks.length >= maxResults * 2) return;
+        const link = $(el).find("a").first();
+        const href = link.attr("href") || "";
+        const title = $(el).find("h3").first().text().trim();
+        const snippet = $(el).find(".VwiC3b, .st, span.aCOpRe").first().text().trim();
+
+        if (href.startsWith("http") && !href.includes("google.com") && title) {
+          resultLinks.push({ title, url: href, snippet });
+        }
+      });
+    } catch {}
+  }
+
+  if (resultLinks.length === 0) {
+    return {
+      success: false,
+      url: "",
+      mode: "search",
+      error: `No search results found for: "${query}"\n\nTry a more specific query, or provide a URL directly.`,
+    };
+  }
+
+  // Deduplicate by domain
+  const seenDomains = new Set<string>();
+  const uniqueLinks = resultLinks.filter(r => {
+    try {
+      const domain = new URL(r.url).hostname;
+      if (seenDomains.has(domain)) return false;
+      seenDomains.add(domain);
+      return true;
+    } catch { return false; }
+  }).slice(0, maxResults);
+
+  // Scrape top results
+  const scrapedContent: string[] = [];
+  scrapedContent.push(`# Search: "${query}"\n`);
+  scrapedContent.push(`**${uniqueLinks.length} sources found and scraped:**\n`);
+
+  for (let i = 0; i < uniqueLinks.length; i++) {
+    const link = uniqueLinks[i];
+    scrapedContent.push(`---\n## Source ${i + 1}: ${link.title}`);
+    scrapedContent.push(`> ${link.url}\n`);
+
+    try {
+      const result = await scrapeSmart(link.url);
+      if (result.success && result.content) {
+        // Truncate each source to keep total reasonable
+        const truncated = result.content.length > 3000
+          ? result.content.slice(0, 3000) + "\n\n[...truncated...]"
+          : result.content;
+        scrapedContent.push(truncated);
+      } else {
+        scrapedContent.push(link.snippet || "(Could not scrape content)");
+      }
+    } catch {
+      scrapedContent.push(link.snippet || "(Scrape failed)");
+    }
+
+    // Delay between scrapes
+    if (i < uniqueLinks.length - 1) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  const content = scrapedContent.join("\n\n");
+
+  return {
+    success: true,
+    url: `search:${query}`,
+    mode: "search",
+    title: `Search: ${query}`,
+    content,
+    links: uniqueLinks.map(l => l.url),
+    metadata: { wordCount: content.split(/\s+/).length },
+  };
+}
+
 // ═══════════════════════════════════════
 // Main scrape function
 // ═══════════════════════════════════════
 export async function scrape(options: ScrapeOptions): Promise<ScrapeResult> {
-  const { mode, url, maxPages, output, selector } = options;
+  const { mode, url, query, maxPages, output, selector, searchResults } = options;
 
-  // Validate URL
+  // Search mode — no URL needed
+  if (mode === "search" && query) {
+    return scrapeSearch(query, searchResults || 3);
+  }
+
+  // Validate URL for non-search modes
   try {
     new URL(url);
   } catch {
@@ -502,6 +632,7 @@ export async function scrape(options: ScrapeOptions): Promise<ScrapeResult> {
   }
 
   switch (mode) {
+    case "search":     return scrapeSearch(url, searchResults || 3); // url used as query fallback
     case "smart":      return scrapeSmart(url, selector);
     case "full":       return scrapeFull(url, selector);
     case "screenshot": return scrapeScreenshot(url, output);
