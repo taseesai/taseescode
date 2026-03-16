@@ -278,10 +278,39 @@ MEMORY RULES:
         // User-friendly rate limit message
         if (errorMessage.includes('429')) {
           const modelName = MODEL_REGISTRY[this.currentModel]?.name || this.currentModel;
+          const config = getConfig();
+
+          // Find any paid API key the user already has
+          const paidModels: string[] = [];
+          if (config.apiKeys.anthropic && config.apiKeys.anthropic.length > 10) paidModels.push("claude-sonnet");
+          if (config.apiKeys.openai && config.apiKeys.openai.length > 10) paidModels.push("gpt-4o");
+          const hasDeepSeek = config.apiKeys.deepseek && config.apiKeys.deepseek.length > 10;
+          if (hasDeepSeek) paidModels.push("deepseek-v3");
+
+          let suggestion: string;
+          if (paidModels.length > 0) {
+            // User has a paid key — suggest switching to it
+            const bestPaid = paidModels[0];
+            const bestName = MODEL_REGISTRY[bestPaid]?.name || bestPaid;
+            suggestion =
+              `   You already have a key for ${bestName}!\n` +
+              `   Switch with: /model ${bestPaid}\n` +
+              `   Paid APIs have much higher rate limits.`;
+          } else {
+            // No paid keys — be helpful about getting one
+            suggestion =
+              `   Free models have strict rate limits. To keep building without interruptions,\n` +
+              `   you'll need an API key with a paid plan:\n\n` +
+              `   💎 DeepSeek — cheapest option (~0.05 SAR/M tokens)\n` +
+              `      Get a key at: platform.deepseek.com\n` +
+              `      Then: /config set apiKeys.deepseek YOUR_KEY\n\n` +
+              `   Or wait 30-60 seconds and try again.`;
+          }
+
           this.callbacks.onError(
-            `⏳ Rate limited by ${modelName}. The provider is throttling requests.\n` +
-            `   Try: /model deepseek-v3 (paid, generous limits)\n` +
-            `   Or wait 30 seconds and try again.`
+            `⏳ Rate limited by ${modelName}.\n` +
+            `   The provider is throttling your requests — this happens with free tiers.\n\n` +
+            suggestion
           );
           return "";
         }
