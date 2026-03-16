@@ -386,9 +386,21 @@ export const App: React.FC = () => {
             if (!output) return;
             break;
           }
-          case "offline":
+          case "offline": {
+            setIsLoading(true);
             output = await handleOffline(argsStr);
+            setIsLoading(false);
+            // If offline mode was just enabled, switch agent model NOW (not just next session)
+            const offlineCfg = getConfig();
+            if (offlineCfg.offlineEnabled && MODEL_REGISTRY["custom:ollama"]) {
+              agent.setModel("custom:ollama");
+            }
+            // If offline mode was disabled, switch back to cloud model
+            if (argsStr.trim().toLowerCase() === "off") {
+              agent.setModel(offlineCfg.defaultModel || "deepseek-v3");
+            }
             break;
+          }
           case "voice": {
             const voiceResult = await handleVoice(argsStr);
             if (voiceResult === "__VOICE_START__") {

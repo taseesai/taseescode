@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { execSync, spawn } from "child_process";
-import { getConfig, setConfig } from "../utils/config";
+import { getConfig, setConfig, setNestedConfig } from "../utils/config";
 import { MODEL_REGISTRY, registerCustomModel } from "../models";
 import { ensureInstalled } from "../utils/auto-install";
 
@@ -142,9 +142,22 @@ async function fullAutoSetup(onStatus: (msg: string) => void): Promise<{ success
     m.includes("llama3") || m.includes("codellama") || m.includes("qwen")
   ) || models[0];
 
+  // Register in-memory
   if (!MODEL_REGISTRY["custom:ollama"]) {
     registerCustomModel("ollama", "http://localhost:11434/v1");
   }
+
+  // Persist to config so it loads on next session
+  const cfg = getConfig();
+  const customApis = (cfg as any).customApis || {};
+  customApis["ollama"] = {
+    name: "ollama",
+    baseUrl: "http://localhost:11434/v1",
+    apiKey: "ollama",
+    model: bestModel,
+    addedAt: new Date().toISOString(),
+  };
+  setNestedConfig("customApis", customApis);
 
   return { success: true, model: bestModel };
 }
