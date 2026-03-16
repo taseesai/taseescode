@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs-extra";
+import { ensureInstalled } from "../utils/auto-install";
 
 const p = {
   white: chalk.hex("#E8E8E8"),
@@ -106,16 +107,22 @@ export async function handleDeploy(args: string): Promise<string> {
   if (!platform) {
     return [
       "",
-      p.yellow("No deployment tool found."),
-      "",
-      "  Install one:",
-      p.white("  npm i -g vercel        ") + p.dim("(recommended, free tier)"),
-      p.white("  npm i -g netlify-cli   ") + p.dim("(free tier)"),
-      p.white("  npm i -g @railway/cli  ") + p.dim("(for backends)"),
-      "",
-      "  Then run /deploy again.",
-      "",
+      p.gray("No deployment tool found. Installing Vercel CLI..."),
     ].join("\n");
+
+    // Auto-install vercel
+    const result = ensureInstalled("vercel", { npm: "vercel" });
+    if (result.success) {
+      platform = "vercel";
+    } else {
+      return [
+        p.red("Could not auto-install Vercel CLI."),
+        "",
+        "  Manual install:",
+        p.white("  npm i -g vercel"),
+        "",
+      ].join("\n");
+    }
   }
 
   const lines: string[] = [

@@ -30,6 +30,10 @@ import { handleDeploy } from "./commands/deploy";
 import { handleDebt } from "./commands/debt";
 import { handleTestGen } from "./commands/test-gen";
 import { handleOffline } from "./commands/offline";
+import { handleVoice, startVoiceRecording } from "./commands/voice";
+import { handleReplay, recordEntry, isRecording } from "./commands/replay";
+import { handleDiffExplain } from "./commands/diff-explain";
+import { handleExplainAr } from "./commands/explain-ar";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
 import { getConfig } from "./utils/config";
@@ -214,7 +218,8 @@ export const App: React.FC = () => {
         "review","explain","fix","history","standup","health",
         "compact","permissions","multiagent","scrape",
         "budget","trust","audit","learn",
-        "deploy","debt","test-gen","offline",
+        "deploy","debt","test-gen","offline","voice",
+        "replay","diff-explain","explain-ar",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -384,6 +389,102 @@ export const App: React.FC = () => {
           case "offline":
             output = await handleOffline(argsStr);
             break;
+          case "voice": {
+            const voiceResult = await handleVoice(argsStr);
+            if (voiceResult === "__VOICE_START__") {
+              // Start voice recording with animated UI
+              setMessages(prev => [...prev, {
+                id: ++msgId, role: "system",
+                content: "🎙️ Listening... (speak now, stops on silence)",
+              }]);
+              setIsLoading(true);
+
+              const voiceText = await startVoiceRecording({
+                onListening: () => {
+                  // Already showing "Listening..."
+                },
+                onTranscribing: () => {
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === "system") {
+                      updated[updated.length - 1] = { ...last, content: "🎙️ Transcribing..." };
+                    }
+                    return updated;
+                  });
+                },
+                onPartialText: (text) => {
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === "system") {
+                      updated[updated.length - 1] = {
+                        ...last,
+                        content: `🎙️ ${text}▊`,
+                      };
+                    }
+                    return updated;
+                  });
+                },
+                onFinalText: (text) => {
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === "system") {
+                      updated[updated.length - 1] = {
+                        ...last,
+                        content: `🎙️ "${text}"`,
+                      };
+                    }
+                    return updated;
+                  });
+                },
+                onError: (error) => {
+                  setMessages(prev => [...prev, {
+                    id: ++msgId, role: "system", content: error,
+                  }]);
+                },
+              });
+
+              if (voiceText) {
+                // Submit the transcribed text as a regular message
+                setMessages(prev => [...prev, {
+                  id: ++msgId, role: "user", content: voiceText,
+                }]);
+                try {
+                  await agent.processMessage(voiceText);
+                } catch (err: any) {
+                  setMessages(prev => [...prev, {
+                    id: ++msgId, role: "system",
+                    content: `Error: ${err.message}`,
+                  }]);
+                }
+              }
+              setIsLoading(false);
+              return;
+            }
+            output = voiceResult;
+            break;
+          }
+          case "replay":
+            output = await handleReplay(argsStr);
+            break;
+          case "diff-explain": {
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleDiffExplain(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          }
+          case "explain-ar": {
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleExplainAr(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          }
           case "multiagent": {
             setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
             await handleMultiAgent(argsStr, agent.getModel(), {

@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { execSync } from "child_process";
 import { getConfig, setConfig } from "../utils/config";
 import { MODEL_REGISTRY, registerCustomModel } from "../models";
+import { ensureInstalled } from "../utils/auto-install";
 
 const p = {
   white: chalk.hex("#E8E8E8"),
@@ -75,14 +76,47 @@ export async function handleOffline(args: string): Promise<string> {
 
   if (subCmd === "on") {
     if (!isOllamaRunning()) {
-      return [
-        p.yellow("⚠️ Ollama is not running."),
-        "",
-        "  Start it first:",
-        p.white("  ollama serve"),
-        "",
-        "  Then try /offline on again.",
-      ].join("\n");
+      // Try to auto-install Ollama if not present
+      try {
+        execSync("which ollama", { stdio: "pipe", timeout: 3000 });
+      } catch {
+        // Ollama not installed — auto-install it
+        const result = ensureInstalled("ollama", {
+          brew: "ollama",
+        }, (msg) => {});
+
+        if (!result.success) {
+          return [
+            p.yellow("⚠️ Ollama is not installed."),
+            "",
+            "  Auto-install failed. Install manually:",
+            p.white("  brew install ollama   (macOS)"),
+            p.white("  curl -fsSL https://ollama.com/install.sh | sh   (Linux)"),
+          ].join("\n");
+        }
+      }
+
+      // Try to start Ollama in background
+      try {
+        require("child_process").spawn("ollama", ["serve"], {
+          detached: true,
+          stdio: "ignore",
+        }).unref();
+        // Wait for it to start
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          if (isOllamaRunning()) break;
+        }
+      } catch {}
+
+      if (!isOllamaRunning()) {
+        return [
+          p.yellow("⚠️ Ollama installed but not running."),
+          "",
+          "  Start it: ollama serve",
+          "  Then try /offline on again.",
+        ].join("\n");
+      }
     }
 
     const models = getOllamaModels();

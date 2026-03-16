@@ -61,6 +61,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/scrape --links",  syntax: "/scrape <url> --links",   desc: "Extract all internal & external links", descAr: "استخراج جميع الروابط" },
   { cmd: "/scrape --crawl",  syntax: "/scrape <url> --crawl",   desc: "Crawl entire website (follow links)", descAr: "زحف الموقع بالكامل" },
   { cmd: "/scrape --api",    syntax: "/scrape <url> --api",     desc: "Discover API/XHR endpoints from page", descAr: "اكتشاف نقاط API من الصفحة" },
+  { cmd: "/voice",          syntax: "/voice",                  desc: "Speak to code — words appear as you talk (free)", descAr: "تكلم للبرمجة — الكلمات تظهر أثناء حديثك (مجاني)" },
   { cmd: "/multiagent",     syntax: "/multiagent [task]",      desc: "Split task into parallel AI agents — each works independently", descAr: "تقسيم المهمة لوكلاء ذكاء اصطناعي يعملون بالتوازي" },
   { cmd: "/offline",         syntax: "/offline",                desc: "Check offline status & local models", descAr: "حالة الاتصال والنماذج المحلية" },
   { cmd: "/offline on",      syntax: "/offline on",             desc: "Enable auto-fallback to local Ollama models", descAr: "تفعيل النموذج المحلي تلقائياً" },
@@ -82,6 +83,16 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/debt report",    syntax: "/debt report",           desc: "Detailed debt report by category", descAr: "تقرير ديون مفصل حسب الفئة" },
   { cmd: "/debt score",     syntax: "/debt score",            desc: "Quick debt score only", descAr: "درجة الديون التقنية فقط" },
   { cmd: "/exit",           syntax: "/exit",                  desc: "Exit TaseesCode — saves memory & session", descAr: "الخروج — يحفظ الذاكرة والجلسة" },
+  { cmd: "/replay",          syntax: "/replay",                desc: "Session recording & playback",             descAr: "تسجيل وتشغيل الجلسات" },
+  { cmd: "/replay start",    syntax: "/replay start [name]",   desc: "Start recording this session",             descAr: "بدء تسجيل الجلسة" },
+  { cmd: "/replay stop",     syntax: "/replay stop",           desc: "Stop recording and save",                  descAr: "إيقاف التسجيل وحفظه" },
+  { cmd: "/replay list",     syntax: "/replay list",           desc: "List saved recordings",                    descAr: "عرض التسجيلات المحفوظة" },
+  { cmd: "/replay play",     syntax: "/replay play <name>",    desc: "Play back a saved recording",              descAr: "تشغيل تسجيل محفوظ" },
+  { cmd: "/replay export",   syntax: "/replay export <name>",  desc: "Export recording to Markdown",             descAr: "تصدير التسجيل لـ Markdown" },
+  { cmd: "/replay delete",   syntax: "/replay delete <name>",  desc: "Delete a saved recording",                 descAr: "حذف تسجيل محفوظ" },
+  { cmd: "/diff-explain",    syntax: "/diff-explain",          desc: "AI-narrated explanation of git diff",      descAr: "شرح ذكي لتغييرات Git" },
+  { cmd: "/diff-explain staged", syntax: "/diff-explain staged", desc: "Explain staged changes with AI",        descAr: "شرح التغييرات المرحلة بالذكاء الاصطناعي" },
+  { cmd: "/explain-ar",      syntax: "/explain-ar <file|concept>", desc: "Explain code/concepts in Arabic",     descAr: "شرح الكود والمفاهيم بالعربي" },
 ];
 
 export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {

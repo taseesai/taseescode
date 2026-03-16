@@ -75,7 +75,28 @@ ${g("  Code / الكود")}
   ${w("/audit deps")}        Check dependency vulns — ${d("ثغرات التبعيات")}
   ${w("/debt")}              Technical debt scan with score — ${d("فحص الديون التقنية")}
   ${w("/debt report")}       Detailed debt report — ${d("تقرير مفصل")}
+
+${g("  Voice / الصوت")}
+  ${w("/voice")}             Speak to code — free, works instantly — ${d("تكلم للبرمجة")}
+  ${w("/voice help")}        Voice setup guide — ${d("دليل إعداد الصوت")}
   ${w("/debt score")}        Quick debt score (0-100) — ${d("درجة سريعة")}
+
+${g("  Replay / التسجيل")}
+  ${w("/replay start")}      Start recording session — ${d("بدء تسجيل الجلسة")}
+  ${w("/replay stop")}       Stop and save recording — ${d("إيقاف وحفظ التسجيل")}
+  ${w("/replay list")}       List saved recordings — ${d("عرض التسجيلات")}
+  ${w("/replay play <name>")} Play back a recording — ${d("تشغيل تسجيل")}
+  ${w("/replay export <name>")} Export to Markdown — ${d("تصدير لـ Markdown")}
+  ${w("/replay delete <name>")} Delete a recording — ${d("حذف تسجيل")}
+
+${g("  Diff Explain / شرح الفروقات")}
+  ${w("/diff-explain")}       Explain unstaged changes with AI — ${d("شرح التغييرات بالذكاء الاصطناعي")}
+  ${w("/diff-explain staged")} Explain staged changes — ${d("شرح التغييرات المرحلة")}
+  ${w("/diff-explain <file>")} Explain changes in a file — ${d("شرح تغييرات ملف")}
+
+${g("  Arabic Education / التعليم بالعربي")}
+  ${w("/explain-ar <file>")}  Explain a file in Arabic — ${d("شرح ملف بالعربي")}
+  ${w("/explain-ar <concept>")} Explain concept in Arabic — ${d("شرح مفهوم بالعربي")}
 
 ${g("  Offline / بدون اتصال")}
   ${w("/offline")}            Check offline status — ${d("حالة الاتصال")}
