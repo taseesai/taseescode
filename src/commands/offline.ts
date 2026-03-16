@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import { getConfig, setConfig } from "../utils/config";
 import { MODEL_REGISTRY, registerCustomModel } from "../models";
 import { ensureInstalled } from "../utils/auto-install";
@@ -12,6 +12,16 @@ const p = {
   yellow: chalk.hex("#C9A962"),
   red: chalk.hex("#C75050"),
 };
+
+// Default model to auto-pull (small, fast, good for coding)
+const DEFAULT_LOCAL_MODEL = "llama3.2";
+
+function isOllamaInstalled(): boolean {
+  try {
+    execSync("which ollama", { stdio: "pipe", timeout: 3000 });
+    return true;
+  } catch { return false; }
+}
 
 function isOllamaRunning(): boolean {
   try {
@@ -37,191 +47,275 @@ function isOnline(): boolean {
   } catch { return false; }
 }
 
+async function waitForOllama(maxWaitSec: number = 15): Promise<boolean> {
+  for (let i = 0; i < maxWaitSec; i++) {
+    if (isOllamaRunning()) return true;
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return false;
+}
+
+function pullModel(model: string, onStatus?: (msg: string) => void): boolean {
+  onStatus?.(`Downloading ${model}... (this may take a few minutes on first run)`);
+  try {
+    execSync(`ollama pull ${model}`, {
+      timeout: 600000, // 10 minutes for large models
+      stdio: "pipe",
+      encoding: "utf-8",
+    });
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Full auto-setup: install Ollama → start it → pull model → register → switch
+ * Everything happens automatically. User just types /offline on.
+ */
+async function fullAutoSetup(onStatus: (msg: string) => void): Promise<{ success: boolean; model: string; error?: string }> {
+  // Step 1: Install Ollama if missing
+  if (!isOllamaInstalled()) {
+    onStatus("🔧 Installing Ollama...");
+
+    if (process.platform === "darwin") {
+      const result = ensureInstalled("ollama", { brew: "ollama" }, onStatus);
+      if (!result.success) {
+        return { success: false, model: "", error: "Could not install Ollama. Install manually: brew install ollama" };
+      }
+    } else if (process.platform === "linux") {
+      onStatus("🔧 Installing Ollama for Linux...");
+      try {
+        execSync("curl -fsSL https://ollama.com/install.sh | sh", {
+          timeout: 120000, stdio: "pipe", encoding: "utf-8",
+        });
+      } catch {
+        return { success: false, model: "", error: "Could not install Ollama. Install manually: curl -fsSL https://ollama.com/install.sh | sh" };
+      }
+    } else {
+      return { success: false, model: "", error: "Auto-install not supported on this platform. Download from ollama.com" };
+    }
+
+    if (!isOllamaInstalled()) {
+      return { success: false, model: "", error: "Ollama installed but not found in PATH. Restart your terminal." };
+    }
+    onStatus("✅ Ollama installed!");
+  }
+
+  // Step 2: Start Ollama if not running
+  if (!isOllamaRunning()) {
+    onStatus("🚀 Starting Ollama server...");
+    try {
+      spawn("ollama", ["serve"], { detached: true, stdio: "ignore" }).unref();
+    } catch {}
+
+    const started = await waitForOllama(15);
+    if (!started) {
+      return { success: false, model: "", error: "Could not start Ollama. Try running 'ollama serve' manually in another terminal." };
+    }
+    onStatus("✅ Ollama server running!");
+  }
+
+  // Step 3: Pull a model if none exist
+  let models = getOllamaModels();
+  if (models.length === 0) {
+    onStatus(`📦 No local models found. Pulling ${DEFAULT_LOCAL_MODEL}...`);
+    onStatus(`   This is a one-time download (~4GB). TaseesCode will be fully free after this.`);
+
+    const pulled = pullModel(DEFAULT_LOCAL_MODEL, onStatus);
+    if (!pulled) {
+      // Try a smaller model
+      onStatus(`   ${DEFAULT_LOCAL_MODEL} failed. Trying phi3 (smaller, ~2GB)...`);
+      const pulledSmall = pullModel("phi3", onStatus);
+      if (!pulledSmall) {
+        return { success: false, model: "", error: "Could not download any model. Check your internet connection and try: ollama pull llama3.2" };
+      }
+    }
+
+    models = getOllamaModels();
+    if (models.length === 0) {
+      return { success: false, model: "", error: "Model pulled but not found. Try: ollama list" };
+    }
+    onStatus(`✅ Model ready: ${models[0]}`);
+  }
+
+  // Step 4: Register Ollama as a model
+  const bestModel = models.find(m =>
+    m.includes("llama3") || m.includes("codellama") || m.includes("qwen")
+  ) || models[0];
+
+  if (!MODEL_REGISTRY["custom:ollama"]) {
+    registerCustomModel("ollama", "http://localhost:11434/v1");
+  }
+
+  return { success: true, model: bestModel };
+}
+
 export async function handleOffline(args: string): Promise<string> {
   const subCmd = args.trim().toLowerCase();
 
-  if (subCmd === "help" || (!subCmd && !isOllamaRunning())) {
-    const ollamaStatus = isOllamaRunning();
-    const onlineStatus = isOnline();
-
+  if (subCmd === "help") {
     return [
       "",
-      p.white.bold("📡 Offline Mode — Local Model Fallback"),
-      p.gray("━".repeat(40)),
+      p.white.bold("📡 Offline Mode — Run TaseesCode 100% Free"),
+      p.gray("━".repeat(45)),
       "",
-      `  Internet:  ${onlineStatus ? p.green("✅ Online") : p.red("❌ Offline")}`,
-      `  Ollama:    ${ollamaStatus ? p.green("✅ Running") : p.yellow("⚠️ Not running")}`,
+      "  /offline on           Set up & switch to local models (fully automatic)",
+      "  /offline off          Switch back to cloud models",
+      "  /offline              Check status",
+      "  /offline models       List local models",
+      "  /offline pull <model> Download a specific model",
+      "  /offline setup        Manual setup guide",
       "",
-      "  /offline              Check status & available local models",
-      "  /offline on           Enable auto-fallback to local models",
-      "  /offline off          Disable auto-fallback",
-      "  /offline models       List local Ollama models",
-      "  /offline setup        Setup guide for Ollama",
+      p.white("  What /offline on does automatically:"),
+      "  1. Installs Ollama (if not installed)",
+      "  2. Starts the Ollama server",
+      "  3. Downloads a free AI model (~4GB, one-time)",
+      "  4. Switches TaseesCode to use it",
       "",
-      "  When enabled:",
-      "  • TaseesCode auto-switches to Ollama if API calls fail",
-      "  • Switches back when internet returns",
-      "  • Shows indicator: [LOCAL] or [CLOUD]",
+      p.green("  After setup: TaseesCode runs 100% free, 100% offline."),
+      p.green("  Your code never leaves your machine. Zero API costs."),
       "",
-      !ollamaStatus ? [
-        p.dim("  Quick setup:"),
-        p.dim("  1. Install Ollama: brew install ollama"),
-        p.dim("  2. Start it: ollama serve"),
-        p.dim("  3. Pull a model: ollama pull llama3.2"),
-        p.dim("  4. Run: /offline on"),
-      ].join("\n") : "",
+      p.dim("  Popular models:"),
+      p.dim("  llama3.2        8B, great for coding (default)"),
+      p.dim("  codellama       Specialized for code"),
+      p.dim("  mistral         7B, fast and capable"),
+      p.dim("  phi3            3.8B, tiny and fast"),
+      p.dim("  qwen2.5-coder   Code-optimized"),
       "",
-    ].filter(Boolean).join("\n");
+    ].join("\n");
   }
 
   if (subCmd === "on") {
-    if (!isOllamaRunning()) {
-      // Try to auto-install Ollama if not present
-      try {
-        execSync("which ollama", { stdio: "pipe", timeout: 3000 });
-      } catch {
-        // Ollama not installed — auto-install it
-        const result = ensureInstalled("ollama", {
-          brew: "ollama",
-        }, (msg) => {});
+    const statusMessages: string[] = [];
+    const onStatus = (msg: string) => { statusMessages.push(`  ${msg}`); };
 
-        if (!result.success) {
-          return [
-            p.yellow("⚠️ Ollama is not installed."),
-            "",
-            "  Auto-install failed. Install manually:",
-            p.white("  brew install ollama   (macOS)"),
-            p.white("  curl -fsSL https://ollama.com/install.sh | sh   (Linux)"),
-          ].join("\n");
-        }
-      }
+    const result = await fullAutoSetup(onStatus);
 
-      // Try to start Ollama in background
-      try {
-        require("child_process").spawn("ollama", ["serve"], {
-          detached: true,
-          stdio: "ignore",
-        }).unref();
-        // Wait for it to start
-        for (let i = 0; i < 10; i++) {
-          await new Promise(r => setTimeout(r, 1000));
-          if (isOllamaRunning()) break;
-        }
-      } catch {}
-
-      if (!isOllamaRunning()) {
-        return [
-          p.yellow("⚠️ Ollama installed but not running."),
-          "",
-          "  Start it: ollama serve",
-          "  Then try /offline on again.",
-        ].join("\n");
-      }
-    }
-
-    const models = getOllamaModels();
-    if (models.length === 0) {
+    if (!result.success) {
       return [
-        p.yellow("⚠️ Ollama is running but no models installed."),
         "",
-        "  Pull a model first:",
-        p.white("  ollama pull llama3.2"),
-        p.white("  ollama pull codellama"),
+        ...statusMessages,
         "",
-        "  Then try /offline on again.",
+        p.red(`  ❌ ${result.error}`),
+        "",
       ].join("\n");
     }
 
-    // Register Ollama as a custom model
-    const bestModel = models.find(m => m.includes("llama3") || m.includes("codellama")) || models[0];
-
-    if (!MODEL_REGISTRY["custom:ollama"]) {
-      registerCustomModel("ollama", "http://localhost:11434/v1");
-    }
-
+    // Save config and switch model
     setConfig("offlineEnabled", true);
-    setConfig("offlineModel", `custom:ollama`);
+    setConfig("offlineModel", "custom:ollama");
+    setConfig("defaultModel", "custom:ollama");
 
     return [
-      p.green("✅ Offline mode enabled!"),
       "",
-      `  Local model: ${p.white(bestModel)}`,
-      `  ${p.dim("TaseesCode will auto-switch to local model if internet drops.")}`,
-      `  ${p.dim("Use /offline off to disable.")}`,
+      p.green.bold("  ✅ Offline mode is ready!"),
+      "",
+      ...statusMessages,
+      "",
+      `  ${p.gray("Local model:")}   ${p.white(result.model)}`,
+      `  ${p.gray("Cost:")}          ${p.green("FREE — forever")}`,
+      `  ${p.gray("Privacy:")}       ${p.green("100% local — code never leaves your machine")}`,
+      "",
+      p.dim("  You're now using TaseesCode completely free."),
+      p.dim("  Switch back anytime with: /offline off"),
+      p.dim("  Download more models: /offline pull codellama"),
+      "",
     ].join("\n");
   }
 
   if (subCmd === "off") {
+    const cfg = getConfig();
+    // Switch back to the best available cloud model
+    const cloudModel = cfg.apiKeys?.deepseek ? "deepseek-v3"
+      : cfg.apiKeys?.groq ? "llama-3.3-70b"
+      : "deepseek-v3";
     setConfig("offlineEnabled", false);
-    return p.green("✅ Offline mode disabled. Using cloud models only.").toString();
+    setConfig("defaultModel", cloudModel);
+    return [
+      p.green("✅ Switched back to cloud models."),
+      `  ${p.dim("Now using:")} ${p.white(MODEL_REGISTRY[cloudModel]?.name || cloudModel)}`,
+    ].join("\n");
+  }
+
+  if (subCmd.startsWith("pull ")) {
+    const modelName = subCmd.replace("pull ", "").trim();
+    if (!modelName) return "Usage: /offline pull <model-name>";
+
+    if (!isOllamaRunning()) {
+      return p.yellow("Ollama is not running. Run /offline on first.").toString();
+    }
+
+    const pulled = pullModel(modelName, (msg) => {});
+    if (pulled) {
+      return p.green(`✅ Downloaded: ${modelName}\n  Switch to it by setting the model in Ollama.`).toString();
+    }
+    return p.red(`❌ Failed to pull ${modelName}. Check the model name at ollama.com/library`).toString();
   }
 
   if (subCmd === "models") {
     if (!isOllamaRunning()) {
-      return p.yellow("Ollama is not running. Start with: ollama serve").toString();
+      return p.yellow("Ollama is not running. Run /offline on to set everything up.").toString();
     }
     const models = getOllamaModels();
-    if (models.length === 0) {
-      return "No local models found. Pull one with: ollama pull llama3.2";
-    }
-    const lines = [
+    if (models.length === 0) return "No local models. Run /offline on to download one automatically.";
+    return [
       "",
-      p.white.bold("📡 Local Models (Ollama)"),
+      p.white.bold("📡 Local Models"),
       p.gray("━".repeat(30)),
       "",
       ...models.map(m => `  • ${p.white(m)}`),
       "",
-      p.dim("  Pull more: ollama pull <model-name>"),
-      p.dim("  Popular: llama3.2, codellama, mistral, phi3"),
+      p.dim("  Download more: /offline pull <model>"),
+      p.dim("  Browse: ollama.com/library"),
       "",
-    ];
-    return lines.join("\n");
+    ].join("\n");
   }
 
   if (subCmd === "setup") {
     return [
       "",
-      p.white.bold("📡 Ollama Setup Guide"),
+      p.white.bold("📡 Manual Setup Guide"),
       p.gray("━".repeat(40)),
       "",
-      p.white("  Step 1: Install Ollama"),
-      p.dim("  macOS:   brew install ollama"),
-      p.dim("  Linux:   curl -fsSL https://ollama.com/install.sh | sh"),
-      p.dim("  Windows: Download from ollama.com"),
+      p.dim("  Usually you don't need this — /offline on does everything."),
+      p.dim("  But if auto-setup failed, follow these steps:"),
       "",
-      p.white("  Step 2: Start the server"),
-      p.dim("  ollama serve"),
+      p.white("  1. Install Ollama"),
+      p.dim("     macOS:   brew install ollama"),
+      p.dim("     Linux:   curl -fsSL https://ollama.com/install.sh | sh"),
+      p.dim("     Windows: Download from ollama.com"),
       "",
-      p.white("  Step 3: Pull a model"),
-      p.dim("  ollama pull llama3.2        (8B, general purpose)"),
-      p.dim("  ollama pull codellama       (code-focused)"),
-      p.dim("  ollama pull mistral         (7B, fast)"),
-      p.dim("  ollama pull phi3            (3.8B, tiny & fast)"),
+      p.white("  2. Start the server"),
+      p.dim("     ollama serve"),
       "",
-      p.white("  Step 4: Enable in TaseesCode"),
-      p.dim("  /offline on"),
+      p.white("  3. Pull a model"),
+      p.dim("     ollama pull llama3.2"),
       "",
-      p.dim("  Models run 100% on your machine. No internet needed."),
-      p.dim("  No API costs. Your code never leaves your device."),
+      p.white("  4. Enable in TaseesCode"),
+      p.dim("     /offline on"),
       "",
     ].join("\n");
   }
 
   // Default: show status
-  const ollamaRunning = isOllamaRunning();
+  const installed = isOllamaInstalled();
+  const running = isOllamaRunning();
   const online = isOnline();
-  const models = ollamaRunning ? getOllamaModels() : [];
+  const models = running ? getOllamaModels() : [];
   const cfg = getConfig();
 
   return [
     "",
     p.white.bold("📡 Offline Status"),
-    p.gray("━".repeat(30)),
+    p.gray("━".repeat(35)),
     "",
-    `  Internet:       ${online ? p.green("✅ Online") : p.red("❌ Offline")}`,
-    `  Ollama:         ${ollamaRunning ? p.green("✅ Running") : p.dim("Not running")}`,
-    `  Auto-fallback:  ${cfg.offlineEnabled ? p.green("✅ Enabled") : p.dim("Disabled")}`,
-    `  Local models:   ${models.length > 0 ? p.white(models.join(", ")) : p.dim("none")}`,
+    `  ${p.gray("Internet:")}      ${online ? p.green("✅ Online") : p.red("❌ Offline")}`,
+    `  ${p.gray("Ollama:")}        ${!installed ? p.dim("Not installed") : running ? p.green("✅ Running") : p.yellow("Installed (not running)")}`,
+    `  ${p.gray("Mode:")}          ${cfg.offlineEnabled ? p.green("🟢 LOCAL — free") : p.dim("☁️  Cloud")}`,
+    `  ${p.gray("Local models:")}  ${models.length > 0 ? p.white(models.join(", ")) : p.dim("none")}`,
+    "",
+    !cfg.offlineEnabled
+      ? p.dim("  Run /offline on to use TaseesCode 100% free with local models.")
+      : p.dim("  Running fully offline. Zero API costs."),
     "",
   ].join("\n");
 }
