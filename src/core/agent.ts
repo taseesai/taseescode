@@ -102,17 +102,43 @@ export class Agent {
     // Load persistent auto-memory
     const autoMemoryContent = await this.autoMemory.load();
 
-    let systemPrompt = SYSTEM_PROMPT;
+    // Check if using a local model (smaller context, no tools)
+    const isLocalModel = this.currentModel.startsWith("custom:") || this.currentModel.includes("ollama");
 
-    systemPrompt += `\n\nPROJECT CONTEXT:\n- Working directory: ${cwd}\n- Git repository: ${context.hasGit ? "yes" : "no"}\n- Files:\n${buildFileTree(context.files)}`;
+    let systemPrompt: string;
 
-    if (memory) {
-      systemPrompt += `\n\nTASEESCODE.md (project memory):\n${memory}`;
-    }
+    if (isLocalModel) {
+      // Simplified prompt for local models — they have limited context and can't handle tools
+      systemPrompt = `You are TaseesCode, an AI coding assistant by TaseesAI (Jeddah, Saudi Arabia).
 
-    // Inject auto-memory — the AI silently knows everything from past sessions
-    if (autoMemoryContent) {
-      systemPrompt += `\n\nPERSISTENT MEMORY (auto-saved from all past sessions — you remember everything):
+You help with coding tasks: writing code, explaining code, debugging, and answering programming questions.
+
+Rules:
+- Be concise and direct
+- Write clean code
+- Match the user's language (Arabic or English)
+- Do NOT call any tools or functions — just respond with text
+- Working directory: ${cwd}`;
+
+      // Add minimal project context (just framework/stack, not full file tree)
+      const { loadDNA } = require("../commands/learn");
+      const dna = await loadDNA(cwd);
+      if (dna) {
+        systemPrompt += `\n\nProject: ${dna.summary}`;
+      }
+    } else {
+      // Full prompt for cloud models
+      systemPrompt = SYSTEM_PROMPT;
+
+      systemPrompt += `\n\nPROJECT CONTEXT:\n- Working directory: ${cwd}\n- Git repository: ${context.hasGit ? "yes" : "no"}\n- Files:\n${buildFileTree(context.files)}`;
+
+      if (memory) {
+        systemPrompt += `\n\nTASEESCODE.md (project memory):\n${memory}`;
+      }
+
+      // Inject auto-memory
+      if (autoMemoryContent) {
+        systemPrompt += `\n\nPERSISTENT MEMORY (auto-saved from all past sessions — you remember everything):
 ${autoMemoryContent}
 
 MEMORY RULES:
@@ -120,18 +146,19 @@ MEMORY RULES:
 - Reference past context naturally without saying "according to my memory" or "I recall".
 - Just know it. Act on it. Like a colleague who was there the whole time.
 - Never tell the user you're reading from memory — just seamlessly continue where you left off.`;
-    }
+      }
 
-    // Load codebase DNA if available
-    const { loadDNA } = require("../commands/learn");
-    const dna = await loadDNA(cwd);
-    if (dna) {
-      systemPrompt += `\n\nCODEBASE DNA (match this coding style):\n${dna.summary}`;
-    }
+      // Load codebase DNA
+      const { loadDNA } = require("../commands/learn");
+      const dna = await loadDNA(cwd);
+      if (dna) {
+        systemPrompt += `\n\nCODEBASE DNA (match this coding style):\n${dna.summary}`;
+      }
 
-    for (const skill of skills) {
-      if (skill.systemPromptAddition) {
-        systemPrompt += `\n\n${skill.systemPromptAddition}`;
+      for (const skill of skills) {
+        if (skill.systemPromptAddition) {
+          systemPrompt += `\n\n${skill.systemPromptAddition}`;
+        }
       }
     }
 
@@ -246,7 +273,9 @@ MEMORY RULES:
       }
 
       const provider = getProvider(this.currentModel);
-      const tools = getToolDefinitions();
+      // Disable tools for local/Ollama models — they hallucinate tool calls
+      const isLocalModel = this.currentModel.startsWith("custom:") || this.currentModel.includes("ollama");
+      const tools = isLocalModel ? [] : getToolDefinitions();
 
       // Track whether streaming was actually used
       let didStream = false;
