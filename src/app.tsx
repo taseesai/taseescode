@@ -26,6 +26,10 @@ import { handleBudget } from "./commands/budget";
 import { handleTrust } from "./commands/trust";
 import { handleAudit } from "./commands/audit";
 import { handleLearn } from "./commands/learn";
+import { handleDeploy } from "./commands/deploy";
+import { handleDebt } from "./commands/debt";
+import { handleTestGen } from "./commands/test-gen";
+import { handleOffline } from "./commands/offline";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
 import { getConfig } from "./utils/config";
@@ -210,6 +214,7 @@ export const App: React.FC = () => {
         "review","explain","fix","history","standup","health",
         "compact","permissions","multiagent","scrape",
         "budget","trust","audit","learn",
+        "deploy","debt","test-gen","offline",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -356,6 +361,29 @@ export const App: React.FC = () => {
             setIsLoading(false);
             break;
           }
+          case "deploy": {
+            setIsLoading(true);
+            output = await handleDeploy(argsStr);
+            setIsLoading(false);
+            break;
+          }
+          case "debt": {
+            setIsLoading(true);
+            output = await handleDebt(argsStr);
+            setIsLoading(false);
+            break;
+          }
+          case "test-gen": {
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handleTestGen(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          }
+          case "offline":
+            output = await handleOffline(argsStr);
+            break;
           case "multiagent": {
             setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
             await handleMultiAgent(argsStr, agent.getModel(), {
@@ -409,10 +437,12 @@ export const App: React.FC = () => {
         }
 
         if (output) {
-          setMessages((prev) => [
-            ...prev,
-            { id: ++msgId, role: "system", content: output },
-          ]);
+          setMessages((prev) => {
+            // Dedup: don't add if last message has same content
+            const last = prev[prev.length - 1];
+            if (last && last.role === "system" && last.content === output) return prev;
+            return [...prev, { id: ++msgId, role: "system", content: output }];
+          });
         }
         return;
       }

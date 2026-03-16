@@ -60,12 +60,29 @@ ${g("  Code / الكود")}
   ${w("/fix [error]")}      Analyze and fix an error — ${d("إصلاح الخطأ")}
   ${w("/standup")}           Generate standup from git — ${d("تقرير يومي")}
   ${w("/health")}            Codebase health report — ${d("صحة المشروع")}
+  ${w("/deploy")}            One-command deploy (Vercel/Netlify/Railway) — ${d("نشر بأمر واحد")}
+  ${w("/deploy vercel")}     Deploy to Vercel — ${d("نشر على Vercel")}
+  ${w("/deploy netlify")}    Deploy to Netlify — ${d("نشر على Netlify")}
+  ${w("/deploy railway")}    Deploy to Railway — ${d("نشر على Railway")}
+  ${w("/deploy status")}     Check deployment status — ${d("حالة النشر")}
+  ${w("/test-gen <file>")}    Generate tests for a file — ${d("توليد اختبارات لملف")}
+  ${w("/test-gen <file> --run")} Generate and run tests — ${d("توليد وتشغيل الاختبارات")}
   ${w("/learn")}             Learn codebase DNA (style, stack) — ${d("تعلم نمط الكود")}
   ${w("/learn show")}        Show learned DNA profile — ${d("عرض ملف DNA")}
   ${w("/learn reset")}       Reset learned profile — ${d("إعادة تعيين DNA")}
   ${w("/audit")}             Security audit scan — ${d("فحص أمني")}
   ${w("/audit secrets")}     Scan for hardcoded secrets — ${d("كشف الأسرار")}
   ${w("/audit deps")}        Check dependency vulns — ${d("ثغرات التبعيات")}
+  ${w("/debt")}              Technical debt scan with score — ${d("فحص الديون التقنية")}
+  ${w("/debt report")}       Detailed debt report — ${d("تقرير مفصل")}
+  ${w("/debt score")}        Quick debt score (0-100) — ${d("درجة سريعة")}
+
+${g("  Offline / بدون اتصال")}
+  ${w("/offline")}            Check offline status — ${d("حالة الاتصال")}
+  ${w("/offline on")}         Enable local model fallback — ${d("تفعيل النموذج المحلي")}
+  ${w("/offline off")}        Disable local fallback — ${d("تعطيل النموذج المحلي")}
+  ${w("/offline models")}     List local Ollama models — ${d("عرض النماذج المحلية")}
+  ${w("/offline setup")}      Ollama setup guide — ${d("دليل التثبيت")}
 
 ${g("  Trust / الثقة")}
   ${w("/trust")}             Show trust score for last response — ${d("درجة الثقة")}
