@@ -448,9 +448,12 @@ export const App: React.FC = () => {
 
               if (voiceText) {
                 // Submit the transcribed text as a regular message
-                setMessages(prev => [...prev, {
-                  id: ++msgId, role: "user", content: voiceText,
-                }]);
+                setMessages(prev => {
+                  // Dedup: don't add if already present
+                  const lastUser = [...prev].reverse().find(m => m.role === "user");
+                  if (lastUser && lastUser.content === voiceText) return prev;
+                  return [...prev, { id: ++msgId, role: "user", content: voiceText }];
+                });
                 try {
                   await agent.processMessage(voiceText);
                 } catch (err: any) {

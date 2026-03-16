@@ -248,12 +248,13 @@ MEMORY RULES:
       const provider = getProvider(this.currentModel);
       const tools = getToolDefinitions();
 
+      // Determine if we should stream (defined outside try for scope access)
+      const streamCallback: StreamCallback | undefined =
+        this.streamingEnabled && this.callbacks.onStreamChunk
+          ? this.callbacks.onStreamChunk
+          : undefined;
+
       try {
-        // Try streaming first, fall back to batch
-        const streamCallback: StreamCallback | undefined =
-          this.streamingEnabled && this.callbacks.onStreamChunk
-            ? this.callbacks.onStreamChunk
-            : undefined;
 
         response = await withRetry(async () => {
           if (streamCallback && provider.chatStream) {
@@ -339,8 +340,9 @@ MEMORY RULES:
         this.conversation.addAssistant(response.content);
         // Auto-memory: silently record assistant response
         this.autoMemory.recordAssistant(response.content);
-        // Only send onResponse if we weren't streaming (streaming already showed the text)
-        if (!this.callbacks.onStreamChunk || !provider.chatStream) {
+        // Only send onResponse if we did NOT stream (streaming already showed the text)
+        const didStream = streamCallback && provider.chatStream;
+        if (!didStream) {
           this.callbacks.onResponse(response.content);
         }
         return response.content;
