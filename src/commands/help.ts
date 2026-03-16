@@ -36,6 +36,14 @@ ${g("  API / الاتصالات")}
   ${w("/api test [name]")}  Test API connection — ${d("اختبار الاتصال")}
   ${w("/api remove [name]")} Remove API — ${d("إزالة API")}
 
+${g("  Scraping / الاستخراج")}
+  ${w("/scrape [url]")}       Smart scrape any page — ${d("استخراج ذكي")}
+  ${w("/scrape [url] --full")} JS-rendered pages — ${d("صفحات ديناميكية")}
+  ${w("/scrape [url] --screenshot")} Capture screenshot — ${d("لقطة شاشة")}
+  ${w("/scrape [url] --links")} Extract all links — ${d("استخراج الروابط")}
+  ${w("/scrape [url] --crawl")} Crawl entire site — ${d("زحف الموقع")}
+  ${w("/scrape [url] --api")}  Discover API endpoints — ${d("اكتشاف نقاط API")}
+
 ${g("  Multi-Agent / الوكلاء المتعددين")}
   ${w("/multiagent [task]")}  Split task into parallel agents — ${d("تقسيم المهمة لوكلاء")}
 

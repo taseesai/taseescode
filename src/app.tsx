@@ -21,6 +21,7 @@ import { handleHistory } from "./commands/history";
 import { handleStandup } from "./commands/standup";
 import { handleHealth } from "./commands/health";
 import { handleMultiAgent } from "./commands/multiagent";
+import { handleScrape } from "./commands/scrape";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
 import { getConfig } from "./utils/config";
@@ -37,6 +38,7 @@ import "./tools/list-files";
 import "./tools/run-command";
 import "./tools/search-code";
 import "./tools/git";
+import "./tools/scrape-tool";
 
 interface DisplayMessage {
   id: number;
@@ -202,7 +204,7 @@ export const App: React.FC = () => {
       const SLASH_CMDS = [
         "help","clear","model","cost","config","memory","skills","exit","api",
         "review","explain","fix","history","standup","health",
-        "compact","permissions","multiagent",
+        "compact","permissions","multiagent","scrape",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -319,6 +321,16 @@ export const App: React.FC = () => {
               '  /config set permissions.allowFileWrite ask|always|never',
               '  /config set permissions.allowCommandRun ask|always|never',
             ].join('\n');
+            break;
+          }
+          case "scrape": {
+            setIsLoading(true);
+            output = await handleScrape(argsStr, (status) => {
+              setMessages(prev => [...prev, {
+                id: ++msgId, role: "system", content: status,
+              }]);
+            });
+            setIsLoading(false);
             break;
           }
           case "multiagent": {

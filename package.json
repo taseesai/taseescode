@@ -1,6 +1,6 @@
 {
   "name": "taseescode",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Arabic-first AI coding assistant by TaseesAI",
   "main": "dist/cli.js",
   "bin": {
@@ -12,7 +12,18 @@
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["ai", "coding", "assistant", "arabic", "cli", "saudi", "llm", "deepseek", "llama", "claude"],
+  "keywords": [
+    "ai",
+    "coding",
+    "assistant",
+    "arabic",
+    "cli",
+    "saudi",
+    "llm",
+    "deepseek",
+    "llama",
+    "claude"
+  ],
   "author": "TaseesAI <hello@taseesai.com>",
   "license": "MIT",
   "homepage": "https://taseescode.com",
@@ -27,9 +38,11 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "axios": "^1.7.0",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
+    "cheerio": "^1.2.0",
     "commander": "^12.1.0",
     "conf": "^10.2.0",
     "fs-extra": "^11.2.0",
@@ -37,14 +50,18 @@
     "ignore": "^5.3.0",
     "ink": "^3.2.0",
     "ink-text-input": "^4.0.3",
+    "linkedom": "^0.18.12",
     "ora": "^5.4.1",
     "react": "^17.0.2",
-    "simple-git": "^3.24.0"
+    "simple-git": "^3.24.0",
+    "sitemapper": "^4.1.4",
+    "turndown": "^7.2.2"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.11.0",
     "@types/react": "^17.0.80",
+    "@types/turndown": "^5.0.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
   }
