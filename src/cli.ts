@@ -27,7 +27,7 @@ const program = new Command();
 program
   .name("taseescode")
   .description("Arabic-first AI coding assistant by TaseesAI")
-  .version("1.6.6")
+  .version("1.7.0")
   .option("-m, --model <model>", "Model to use (deepseek-v3, claude-sonnet, gpt-4o)")
   .action(() => {
     render(React.createElement(Root));

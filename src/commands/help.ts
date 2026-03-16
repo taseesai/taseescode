@@ -75,11 +75,36 @@ ${g("  Code / الكود")}
   ${w("/audit deps")}        Check dependency vulns — ${d("ثغرات التبعيات")}
   ${w("/debt")}              Technical debt scan with score — ${d("فحص الديون التقنية")}
   ${w("/debt report")}       Detailed debt report — ${d("تقرير مفصل")}
+  ${w("/pipeline")}          AI-generated CI/CD pipelines — ${d("أنابيب CI/CD بالذكاء الاصطناعي")}
+  ${w("/pipeline github")}   Generate GitHub Actions — ${d("توليد GitHub Actions")}
+  ${w("/pipeline gitlab")}   Generate GitLab CI — ${d("توليد GitLab CI")}
+  ${w("/pipeline docker")}   Generate Dockerfile — ${d("توليد Dockerfile")}
+  ${w("/pipeline all")}      Generate all configs — ${d("توليد جميع الإعدادات")}
+
+${g("  Gov / الحوكمة")}
+  ${w("/gov")}               Saudi compliance scan (PDPL, NCA, NDMO) — ${d("فحص الامتثال السعودي")}
+  ${w("/gov pdpl")}           Data protection checks — ${d("فحص حماية البيانات")}
+  ${w("/gov nca")}            Cybersecurity checks — ${d("فحص الأمن السيبراني")}
+  ${w("/gov data")}           Data sovereignty checks — ${d("فحص سيادة البيانات")}
+  ${w("/gov report")}         Generate compliance report — ${d("تقرير الامتثال")}
 
 ${g("  Voice / الصوت")}
   ${w("/voice")}             Speak to code — free, works instantly — ${d("تكلم للبرمجة")}
   ${w("/voice help")}        Voice setup guide — ${d("دليل إعداد الصوت")}
   ${w("/debt score")}        Quick debt score (0-100) — ${d("درجة سريعة")}
+
+${g("  Gamify / التلعيب")}
+  ${w("/gamify")}            Show XP, level & streak — ${d("عرض المستوى والنقاط")}
+  ${w("/gamify achievements")} List all achievements — ${d("عرض الإنجازات")}
+  ${w("/gamify reset")}      Reset all stats — ${d("إعادة تعيين الإحصائيات")}
+  ${w("/gamify help")}       XP system guide — ${d("دليل نظام النقاط")}
+
+${g("  Collab / التعاون")}
+  ${w("/collab")}              Show collab help — ${d("مساعدة التعاون")}
+  ${w("/collab start")}        Host a pair programming session — ${d("بدء جلسة برمجة مشتركة")}
+  ${w("/collab join <host>")}  Join a session on local network — ${d("الانضمام لجلسة")}
+  ${w("/collab stop")}         End the current session — ${d("إنهاء الجلسة")}
+  ${w("/collab status")}       Check session status — ${d("حالة الجلسة")}
 
 ${g("  Replay / التسجيل")}
   ${w("/replay start")}      Start recording session — ${d("بدء تسجيل الجلسة")}

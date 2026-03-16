@@ -32,6 +32,10 @@ import { handleTestGen } from "./commands/test-gen";
 import { handleOffline } from "./commands/offline";
 import { handleVoice, startVoiceRecording } from "./commands/voice";
 import { handleReplay, recordEntry, isRecording } from "./commands/replay";
+import { handleCollab } from "./commands/collab";
+import { handlePipeline } from "./commands/pipeline";
+import { handleGamify } from "./commands/gamify";
+import { handleGov } from "./commands/gov";
 import { handleDiffExplain } from "./commands/diff-explain";
 import { handleExplainAr } from "./commands/explain-ar";
 import { ModelPicker } from "./ui/model-picker";
@@ -220,6 +224,7 @@ export const App: React.FC = () => {
         "budget","trust","audit","learn",
         "deploy","debt","test-gen","offline","voice",
         "replay","diff-explain","explain-ar",
+        "collab","pipeline","gamify","gov",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -498,6 +503,29 @@ export const App: React.FC = () => {
             output = await handleExplainAr(argsStr, agent);
             setIsLoading(false);
             if (!output) return;
+            break;
+          }
+          case "collab": {
+            setIsLoading(true);
+            output = await handleCollab(argsStr);
+            setIsLoading(false);
+            break;
+          }
+          case "pipeline": {
+            setMessages(prev => [...prev, { id: ++msgId, role: "user", content: input }]);
+            setIsLoading(true);
+            output = await handlePipeline(argsStr, agent);
+            setIsLoading(false);
+            if (!output) return;
+            break;
+          }
+          case "gamify":
+            output = await handleGamify(argsStr);
+            break;
+          case "gov": {
+            setIsLoading(true);
+            output = await handleGov(argsStr);
+            setIsLoading(false);
             break;
           }
           case "multiagent": {
