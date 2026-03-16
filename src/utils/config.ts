@@ -30,6 +30,7 @@ export interface TaseesConfig {
     model: string | null;
     addedAt: string;
   }>;
+  trustAutoVerify: boolean;
 }
 
 const defaults: TaseesConfig = {
@@ -54,6 +55,7 @@ const defaults: TaseesConfig = {
     groq: null,
   },
   customApis: {},
+  trustAutoVerify: false,
 };
 
 const configDir = path.join(

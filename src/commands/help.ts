@@ -25,6 +25,13 @@ ${g("  Config / الإعدادات")}
   ${w("/config set [k] [v]")} Set config value — ${d("تعيين قيمة")}
   ${w("/cost")}             Show session cost in SAR — ${d("عرض التكلفة")}
 
+${g("  Budget / الميزانية")}
+  ${w("/budget")}            Show budget dashboard — ${d("لوحة الميزانية")}
+  ${w("/budget daily [n]")}  Set daily limit in SAR — ${d("حد يومي")}
+  ${w("/budget weekly [n]")} Set weekly limit in SAR — ${d("حد أسبوعي")}
+  ${w("/budget monthly [n]")} Set monthly limit in SAR — ${d("حد شهري")}
+  ${w("/budget clear")}      Remove all limits — ${d("إزالة الحدود")}
+
 ${g("  Skills / المهارات")}
   ${w("/skills list")}      List installed skills — ${d("عرض المهارات")}
   ${w("/skills install")}   Install a skill — ${d("تثبيت مهارة")}
@@ -53,6 +60,17 @@ ${g("  Code / الكود")}
   ${w("/fix [error]")}      Analyze and fix an error — ${d("إصلاح الخطأ")}
   ${w("/standup")}           Generate standup from git — ${d("تقرير يومي")}
   ${w("/health")}            Codebase health report — ${d("صحة المشروع")}
+  ${w("/learn")}             Learn codebase DNA (style, stack) — ${d("تعلم نمط الكود")}
+  ${w("/learn show")}        Show learned DNA profile — ${d("عرض ملف DNA")}
+  ${w("/learn reset")}       Reset learned profile — ${d("إعادة تعيين DNA")}
+  ${w("/audit")}             Security audit scan — ${d("فحص أمني")}
+  ${w("/audit secrets")}     Scan for hardcoded secrets — ${d("كشف الأسرار")}
+  ${w("/audit deps")}        Check dependency vulns — ${d("ثغرات التبعيات")}
+
+${g("  Trust / الثقة")}
+  ${w("/trust")}             Show trust score for last response — ${d("درجة الثقة")}
+  ${w("/trust auto on")}     Auto-verify low-confidence responses — ${d("تحقق تلقائي")}
+  ${w("/trust auto off")}    Disable auto-verification — ${d("إيقاف التحقق")}
 
 ${g("  Memory & History / الذاكرة والسجل")}
   ${w("/memory")}           Show project memory — ${d("عرض الذاكرة")}

@@ -22,6 +22,10 @@ import { handleStandup } from "./commands/standup";
 import { handleHealth } from "./commands/health";
 import { handleMultiAgent } from "./commands/multiagent";
 import { handleScrape } from "./commands/scrape";
+import { handleBudget } from "./commands/budget";
+import { handleTrust } from "./commands/trust";
+import { handleAudit } from "./commands/audit";
+import { handleLearn } from "./commands/learn";
 import { ModelPicker } from "./ui/model-picker";
 import { MODEL_REGISTRY } from "./models";
 import { getConfig } from "./utils/config";
@@ -205,6 +209,7 @@ export const App: React.FC = () => {
         "help","clear","model","cost","config","memory","skills","exit","api",
         "review","explain","fix","history","standup","health",
         "compact","permissions","multiagent","scrape",
+        "budget","trust","audit","learn",
       ];
       const firstToken = input.startsWith("/") ? input.slice(1).split(/[\s/]/)[0] : "";
       if (input.startsWith("/") && SLASH_CMDS.includes(firstToken)) {
@@ -330,6 +335,24 @@ export const App: React.FC = () => {
                 id: ++msgId, role: "system", content: status,
               }]);
             });
+            setIsLoading(false);
+            break;
+          }
+          case "budget":
+            output = await handleBudget(argsStr);
+            break;
+          case "trust":
+            output = await handleTrust(argsStr);
+            break;
+          case "audit": {
+            setIsLoading(true);
+            output = await handleAudit(argsStr);
+            setIsLoading(false);
+            break;
+          }
+          case "learn": {
+            setIsLoading(true);
+            output = await handleLearn(argsStr);
             setIsLoading(false);
             break;
           }

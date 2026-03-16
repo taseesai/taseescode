@@ -122,6 +122,13 @@ MEMORY RULES:
 - Never tell the user you're reading from memory — just seamlessly continue where you left off.`;
     }
 
+    // Load codebase DNA if available
+    const { loadDNA } = require("../commands/learn");
+    const dna = await loadDNA(cwd);
+    if (dna) {
+      systemPrompt += `\n\nCODEBASE DNA (match this coding style):\n${dna.summary}`;
+    }
+
     for (const skill of skills) {
       if (skill.systemPromptAddition) {
         systemPrompt += `\n\n${skill.systemPromptAddition}`;

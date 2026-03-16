@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import chalk from "chalk";
+import { getConfig } from "../utils/config";
 
 interface PromptProps {
   onSubmit: (value: string) => void;
@@ -37,6 +38,9 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/git commit",     syntax: "/git commit",            desc: "AI commit message + commit", descAr: "رسالة commit ذكية" },
   { cmd: "/git pr",         syntax: "/git pr",                desc: "Generate PR description",    descAr: "توليد وصف الـ PR" },
   { cmd: "/health",         syntax: "/health",                desc: "Codebase health report",     descAr: "تقرير صحة الكود" },
+  { cmd: "/audit",          syntax: "/audit",                 desc: "Security audit scan",        descAr: "فحص أمني للمشروع" },
+  { cmd: "/audit secrets",  syntax: "/audit secrets",         desc: "Scan for hardcoded secrets", descAr: "كشف الأسرار المكشوفة" },
+  { cmd: "/audit deps",     syntax: "/audit deps",            desc: "Check dependency vulns",     descAr: "فحص ثغرات التبعيات" },
   { cmd: "/n8n",            syntax: "/n8n [description]",     desc: "Generate n8n workflow",      descAr: "توليد workflow لـ n8n" },
   { cmd: "/template",       syntax: "/template [name]",       desc: "Scaffold from template",     descAr: "بناء مشروع من قالب" },
   { cmd: "/history",        syntax: "/history",               desc: "Browse past sessions",       descAr: "تصفح الجلسات السابقة" },
@@ -45,9 +49,28 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/api add",        syntax: "/api add [name] [url]",  desc: "Connect any API",            descAr: "ربط API خارجي" },
   { cmd: "/api list",       syntax: "/api list",              desc: "List connected APIs",        descAr: "عرض الاتصالات" },
   { cmd: "/api test",       syntax: "/api test [name]",       desc: "Test API connection",        descAr: "اختبار الاتصال" },
-  { cmd: "/scrape",          syntax: "/scrape <url> [--mode]",  desc: "Scrape any webpage",             descAr: "استخراج محتوى أي صفحة" },
-  { cmd: "/multiagent",     syntax: "/multiagent [task]",      desc: "Split task into parallel agents", descAr: "تقسيم المهمة لوكلاء متعددين" },
-  { cmd: "/exit",           syntax: "/exit",                  desc: "Exit TaseesCode",            descAr: "الخروج" },
+  { cmd: "/budget",          syntax: "/budget",                 desc: "Budget dashboard — track SAR spend with limits", descAr: "لوحة الميزانية — تتبع إنفاقك بالريال مع حدود" },
+  { cmd: "/budget daily",    syntax: "/budget daily [amount]",  desc: "Set daily SAR limit — auto-warns when approaching", descAr: "حد يومي بالريال — تنبيه تلقائي عند الاقتراب" },
+  { cmd: "/budget weekly",   syntax: "/budget weekly [amount]", desc: "Set weekly SAR limit", descAr: "حد أسبوعي بالريال" },
+  { cmd: "/budget monthly",  syntax: "/budget monthly [amount]",desc: "Set monthly SAR limit with spend prediction", descAr: "حد شهري مع توقع الإنفاق" },
+  { cmd: "/budget clear",    syntax: "/budget clear",           desc: "Remove all budget limits", descAr: "إزالة جميع حدود الميزانية" },
+  { cmd: "/scrape",          syntax: "/scrape <url or topic>",  desc: "Scrape a URL or search any topic on the web", descAr: "استخراج صفحة أو بحث عن أي موضوع" },
+  { cmd: "/scrape --full",   syntax: "/scrape <url> --full",    desc: "Scrape JS-rendered pages with headless browser", descAr: "استخراج صفحات ديناميكية بمتصفح" },
+  { cmd: "/scrape --screenshot", syntax: "/scrape <url> --screenshot", desc: "Capture full-page screenshot", descAr: "لقطة شاشة كاملة للصفحة" },
+  { cmd: "/scrape --links",  syntax: "/scrape <url> --links",   desc: "Extract all internal & external links", descAr: "استخراج جميع الروابط" },
+  { cmd: "/scrape --crawl",  syntax: "/scrape <url> --crawl",   desc: "Crawl entire website (follow links)", descAr: "زحف الموقع بالكامل" },
+  { cmd: "/scrape --api",    syntax: "/scrape <url> --api",     desc: "Discover API/XHR endpoints from page", descAr: "اكتشاف نقاط API من الصفحة" },
+  { cmd: "/multiagent",     syntax: "/multiagent [task]",      desc: "Split task into parallel AI agents — each works independently", descAr: "تقسيم المهمة لوكلاء ذكاء اصطناعي يعملون بالتوازي" },
+  { cmd: "/trust",          syntax: "/trust",                 desc: "Show confidence score (0-100%) for last AI response", descAr: "درجة الثقة بالرد الأخير (0-100%)" },
+  { cmd: "/trust auto on",  syntax: "/trust auto on",         desc: "Auto-verify low-confidence responses with second pass", descAr: "تحقق تلقائي من الردود منخفضة الثقة" },
+  { cmd: "/trust auto off", syntax: "/trust auto off",        desc: "Disable auto-verification", descAr: "إيقاف التحقق التلقائي" },
+  { cmd: "/audit",          syntax: "/audit",                 desc: "Security scan — find secrets, XSS, SQL injection, vuln deps", descAr: "فحص أمني — كشف الأسرار والثغرات" },
+  { cmd: "/audit secrets",  syntax: "/audit secrets",         desc: "Scan for hardcoded API keys, passwords, tokens", descAr: "فحص المفاتيح وكلمات المرور المشفرة" },
+  { cmd: "/audit deps",     syntax: "/audit deps",            desc: "Check dependency vulnerabilities (npm audit)", descAr: "فحص ثغرات المكتبات" },
+  { cmd: "/learn",          syntax: "/learn",                 desc: "Analyze codebase DNA — learn your naming, style, stack", descAr: "تحليل الحمض النووي للمشروع — تعلم أسلوبك" },
+  { cmd: "/learn show",     syntax: "/learn show",            desc: "Show learned coding style profile", descAr: "عرض ملف أسلوب البرمجة المتعلم" },
+  { cmd: "/learn reset",    syntax: "/learn reset",           desc: "Delete learned profile", descAr: "حذف الملف المتعلم" },
+  { cmd: "/exit",           syntax: "/exit",                  desc: "Exit TaseesCode — saves memory & session", descAr: "الخروج — يحفظ الذاكرة والجلسة" },
 ];
 
 export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {
@@ -64,7 +87,7 @@ export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {
         (c) =>
           c.cmd.startsWith(query) ||
           c.syntax.toLowerCase().startsWith(query)
-      ).slice(0, 8) // max 8 visible
+      ).slice(0, 12) // max 12 visible
     : [];
 
   const safeIndex = Math.min(selectedIndex, Math.max(filtered.length - 1, 0));
@@ -135,7 +158,10 @@ export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {
   return (
     <Box flexDirection="column">
       {/* Slash command menu — appears above the prompt */}
-      {showMenu && filtered.length > 0 && (
+      {showMenu && filtered.length > 0 && (() => {
+        const lang = getConfig().language || "auto";
+        const isAr = lang === "ar";
+        return (
         <Box
           flexDirection="column"
           borderStyle="single"
@@ -143,29 +169,31 @@ export const Prompt: React.FC<PromptProps> = ({ onSubmit, isLoading }) => {
           marginBottom={0}
           paddingX={1}
         >
-          <Text color="#4A4A4A">{`  Commands — Tab to complete, ↑↓ to navigate`}</Text>
+          <Text color="#4A4A4A">{isAr ? `  الأوامر — Tab للإكمال، ↑↓ للتنقل` : `  Commands — Tab to complete, ↑↓ to navigate`}</Text>
           <Box flexDirection="column" marginTop={0}>
             {filtered.map((cmd, i) => {
               const isSelected = i === safeIndex;
+              const desc = isAr ? cmd.descAr : cmd.desc;
+              const altDesc = isAr ? cmd.desc : cmd.descAr;
               return (
-                <Box key={cmd.cmd} flexDirection="row" marginRight={1}>
+                <Box key={cmd.cmd + i} flexDirection="row" marginRight={1}>
                   <Text>
                     {isSelected
-                      ? chalk.hex("#E8E8E8").bold(`❯ ${cmd.syntax.padEnd(32)}`)
-                      : chalk.hex("#707070")(`  ${cmd.syntax.padEnd(32)}`)}
+                      ? chalk.hex("#E8E8E8").bold(`❯ ${cmd.syntax.padEnd(34)}`)
+                      : chalk.hex("#555555")(`  ${cmd.syntax.padEnd(34)}`)}
                   </Text>
                   <Text>
                     {isSelected
-                      ? chalk.hex("#ABABAB")(`${cmd.desc}  `) +
-                        chalk.hex("#4A4A4A")(`— ${cmd.descAr}`)
-                      : chalk.hex("#4A4A4A")(`${cmd.desc}`)}
+                      ? chalk.hex("#ABABAB")(desc) + chalk.hex("#3A3A3A")(` — ${altDesc}`)
+                      : chalk.hex("#4A4A4A")(desc)}
                   </Text>
                 </Box>
               );
             })}
           </Box>
         </Box>
-      )}
+      );
+      })()}
 
       {/* Input prompt */}
       <Box>
